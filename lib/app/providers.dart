@@ -4,21 +4,39 @@ import '../core/calendar/trading_calendar.dart';
 import '../data/db/app_database.dart';
 import '../data/repo/calendar_repository.dart';
 import '../data/repo/journal_repository.dart';
+import '../data/repo/quick_phrase_repository.dart';
 
-/// 数据库单例。测试中可 override 为内存库。
-final databaseProvider = Provider<AppDatabase>((ref) {
-  final db = AppDatabase.open();
-  ref.onDispose(db.close);
-  return db;
-});
+/// 数据库单例。在 main / 测试中通过 override 注入。
+final databaseProvider = Provider<AppDatabase>(
+    (ref) => throw UnimplementedError('databaseProvider must be overridden'));
+
+/// 当前时间来源，测试中可固定。
+final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// 交易日历。启动时从数据库加载，Tushare 同步后（M2）调用 [CalendarNotifier.set] 更新。
+class CalendarNotifier extends Notifier<TradingCalendar> {
+  CalendarNotifier([this._initial]);
+  final TradingCalendar? _initial;
+
+  @override
+  TradingCalendar build() => _initial ?? TradingCalendar();
+
+  void set(TradingCalendar calendar) => state = calendar;
+}
+
+final tradingCalendarProvider =
+    NotifierProvider<CalendarNotifier, TradingCalendar>(CalendarNotifier.new);
 
 final calendarRepositoryProvider =
     Provider((ref) => CalendarRepository(ref.watch(databaseProvider)));
 
-final tradingCalendarProvider = FutureProvider<TradingCalendar>(
-    (ref) => ref.watch(calendarRepositoryProvider).load());
+final journalRepositoryProvider = Provider((ref) => JournalRepository(
+      ref.watch(databaseProvider),
+      ref.watch(tradingCalendarProvider),
+      now: ref.watch(clockProvider),
+    ));
 
-final journalRepositoryProvider = FutureProvider<JournalRepository>((ref) async {
-  final calendar = await ref.watch(tradingCalendarProvider.future);
-  return JournalRepository(ref.watch(databaseProvider), calendar);
-});
+final quickPhraseRepositoryProvider = Provider((ref) => QuickPhraseRepository(
+      ref.watch(databaseProvider),
+      now: ref.watch(clockProvider),
+    ));

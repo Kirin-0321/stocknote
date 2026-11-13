@@ -120,6 +120,34 @@ class JournalRepository {
         .write(JournalEntriesCompanion(deletedAt: Value(ms), updatedAt: Value(ms)));
   }
 
+  /// 撤销软删除。
+  Future<void> restore(String id) async {
+    await (_db.update(_db.journalEntries)..where((e) => e.id.equals(id))).write(
+        JournalEntriesCompanion(
+            deletedAt: const Value(null),
+            updatedAt: Value(_now().millisecondsSinceEpoch)));
+  }
+
+  /// 搜索：关键词（空格分隔，全部命中）匹配内容 / 标签 / 关联标的，并可按要素过滤。
+  Future<List<JournalEntry>> search(JournalQuery q) {
+    final query = _db.select(_db.journalEntries)..where((e) => e.deletedAt.isNull());
+    for (final term in q.terms) {
+      final p = '%${term.replaceAll('%', '').replaceAll('_', '')}%';
+      query.where((e) => e.content.like(p) | e.tags.like(p) | e.instrumentCodes.like(p));
+    }
+    if (q.stance != null) query.where((e) => e.stance.equals(q.stance!));
+    if (q.action != null) query.where((e) => e.action.equals(q.action!));
+    if (q.emotion != null) query.where((e) => e.emotion.equals(q.emotion!));
+    if (q.tag != null) query.where((e) => e.tags.like('%"${q.tag}"%'));
+    if (q.instrument != null) {
+      query.where((e) => e.instrumentCodes.like('%"${q.instrument}"%'));
+    }
+    query
+      ..orderBy([(e) => OrderingTerm.desc(e.ts)])
+      ..limit(q.limit);
+    return query.get();
+  }
+
   /// 某交易日的全部条目，按时间排序。
   Stream<List<JournalEntry>> watchDay(DateTime tradeDate) =>
       (_db.select(_db.journalEntries)
@@ -130,4 +158,35 @@ class JournalRepository {
 
   Future<List<Revision>> history(String id) =>
       _revisions.history(RevisionEntity.journalEntry, id);
+}
+
+class JournalQuery {
+  const JournalQuery({
+    this.text = '',
+    this.stance,
+    this.action,
+    this.emotion,
+    this.tag,
+    this.instrument,
+    this.limit = 200,
+  });
+
+  final String text;
+  final String? stance;
+  final String? action;
+  final String? emotion;
+  final String? tag;
+  final String? instrument;
+  final int limit;
+
+  List<String> get terms =>
+      text.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+
+  bool get isEmpty =>
+      terms.isEmpty &&
+      stance == null &&
+      action == null &&
+      emotion == null &&
+      tag == null &&
+      instrument == null;
 }
