@@ -9,13 +9,15 @@ void main() {
         [TagField.subcategory, TagField.stance, TagField.horizon]);
     expect(groupsFor(EntryCategory.plan).map((g) => g.field), [TagField.action, TagField.horizon]);
     expect(groupsFor(EntryCategory.observe).single.options, ObserveTopic.values);
-    expect(groupsFor(EntryCategory.other), isEmpty);
+    expect(groupsFor(EntryCategory.other).single.field, TagField.emotion);
   });
 
-  test('切换一级分类清空二级字段，保留情绪', () {
+  test('切换一级分类清空全部二级字段', () {
     final c = const EntryClass(category: 'judge', subcategory: 'stock', stance: 'bull', emotion: 'fomo')
         .withCategory(EntryCategory.plan);
-    expect(c, const EntryClass(category: 'plan', emotion: 'fomo'));
+    expect(c, const EntryClass(category: 'plan'));
+    expect(const EntryClass(category: 'judge', emotion: 'fomo').normalized().emotion, isNull);
+    expect(const EntryClass(category: 'other', emotion: 'fomo').normalized().emotion, 'fomo');
   });
 
   test('规范化：未选分类视为其他，去掉不属于该分类的字段', () {
@@ -47,3 +49,4 @@ void main() {
     expect(inferJudgeTarget(const EntryClass(category: 'plan'), ['600519.SH']).subcategory, isNull);
   });
 }
+

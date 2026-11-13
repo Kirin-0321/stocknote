@@ -95,7 +95,7 @@ class CategoryPicker extends StatelessWidget {
             ),
         ]),
       ),
-      if (groups.isNotEmpty || showEmotion) ...[
+      if (groups.isNotEmpty) ...[
         const SizedBox(height: 4),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -108,14 +108,6 @@ class CategoryPicker extends StatelessWidget {
                 selected: value.get(g.field),
                 color: color,
                 onChanged: (v) => onChanged(value.withField(g.field, v)),
-              ),
-            ],
-            if (showEmotion) ...[
-              if (groups.isNotEmpty) divider(),
-              ChoiceGroup(
-                options: emotionGroup.options,
-                selected: value.emotion,
-                onChanged: (v) => onChanged(value.withField(TagField.emotion, v)),
               ),
             ],
           ]),
@@ -157,12 +149,6 @@ class CategoryForm extends StatelessWidget {
           onChanged: (v) => onChanged(value.withField(g.field, v)),
         ),
       ],
-      label(emotionGroup.label),
-      ChoiceGroup(
-        options: emotionGroup.options,
-        selected: value.emotion,
-        onChanged: (v) => onChanged(value.withField(TagField.emotion, v)),
-      ),
     ]);
   }
 }
@@ -210,4 +196,5 @@ class ClassTags extends StatelessWidget {
     ]);
   }
 }
+
 

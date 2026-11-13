@@ -29,11 +29,11 @@ void main() {
           content: '\$600519 缩量回调',
           instrumentCodes: ['600519'],
           classification:
-              const EntryClass(category: 'observe', subcategory: 'stock', emotion: 'calm'));
+              const EntryClass(category: 'observe', subcategory: 'stock'));
       await journal.create(
           content: '追高了 #教训',
           tags: ['教训'],
-          classification: const EntryClass(category: 'plan', action: 'buy', emotion: 'fomo'));
+          classification: const EntryClass(category: 'other', emotion: 'fomo'));
     });
 
     test('关键词匹配内容 / 标签 / 代码，多个词需全部命中', () async {
@@ -104,4 +104,5 @@ void main() {
     });
   });
 }
+
 

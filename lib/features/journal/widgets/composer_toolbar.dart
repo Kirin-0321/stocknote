@@ -9,7 +9,7 @@ enum ComposerPanel { none, category, sub, tags, phrases }
 
 /// 二级 = 一级分类展开的第一组；标签 = 其余组 + 情绪。
 TagGroup? subGroupOf(EntryCategory? c) => groupsFor(c).firstOrNull;
-List<TagGroup> tagGroupsOf(EntryCategory? c) => [...groupsFor(c).skip(1), emotionGroup];
+List<TagGroup> tagGroupsOf(EntryCategory? c) => groupsFor(c).skip(1).toList();
 
 /// 一排四个按钮：一级 / 二级 / 标签 / 快捷。按钮文字显示当前选择。
 class ComposerToolbar extends StatelessWidget {
@@ -80,7 +80,7 @@ class ComposerToolbar extends StatelessWidget {
           button(ComposerPanel.sub, subLabel ?? sub?.label ?? '二级',
               active: subLabel != null, enabled: sub != null, tint: color),
           button(ComposerPanel.tags, tagLabels.isEmpty ? '标签' : tagLabels.join('·'),
-              active: tagLabels.isNotEmpty, tint: color),
+              active: tagLabels.isNotEmpty, enabled: tagGroupsOf(cat).isNotEmpty, tint: color),
           button(ComposerPanel.phrases, '快捷'),
         ],
       ),
@@ -292,4 +292,5 @@ const _categoryDesc = {
   EntryCategory.review: '事后总结',
   EntryCategory.other: '任意内容',
 };
+
 

@@ -43,9 +43,8 @@ class EntryClass {
         emotion: f == TagField.emotion ? v : emotion,
       );
 
-  /// 切换一级分类：清空与分类相关的二级字段，保留情绪。
-  EntryClass withCategory(EntryCategory? c) =>
-      EntryClass(category: c?.code, emotion: emotion);
+  /// 切换一级分类：清空全部二级字段（情绪只属于"其他"）。
+  EntryClass withCategory(EntryCategory? c) => EntryClass(category: c?.code);
 
   /// 保存前的规范化：未选一级分类视为"其他"；去掉不属于当前分类的字段。
   EntryClass normalized() {
@@ -58,7 +57,7 @@ class EntryClass {
       stance: keep(TagField.stance),
       action: keep(TagField.action),
       horizon: keep(TagField.horizon),
-      emotion: emotion,
+      emotion: keep(TagField.emotion),
     );
   }
 

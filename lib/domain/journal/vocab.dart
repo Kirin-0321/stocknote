@@ -81,7 +81,7 @@ enum Direction implements Coded {
 enum JudgeHorizon implements Coded {
   today('close', '今日'),
   t1('t1', 'T+1'),
-  week('t5', '本周'),
+  week('t5', '一周'),
   mid('mid', '中期');
 
   const JudgeHorizon(this.code, this.label);
@@ -205,10 +205,11 @@ List<TagGroup> groupsFor(EntryCategory? c) => switch (c) {
           TagGroup(TagField.horizon, '时间', PlanTiming.values),
         ],
       EntryCategory.review => const [TagGroup(TagField.subcategory, '类型', ReviewKind.values)],
-      EntryCategory.other || null => const [],
+      // 情绪只在"其他"中保留（主观状态难以自我判断，默认只记录外在因素）
+      EntryCategory.other => const [TagGroup(TagField.emotion, '情绪', Emotion.values)],
+      null => const [],
     };
 
-const emotionGroup = TagGroup(TagField.emotion, '情绪', Emotion.values);
 
 /// 把存库 code 翻译成显示文字（考虑一级分类上下文；无分类时按旧版要素解释）。
 String? labelFor(EntryCategory? c, TagField field, String? code) {
