@@ -45,6 +45,7 @@
 | 日记记录 | 快捷输入、自动时点分条、行情快照、标签、模板 | 语音转写优化、图片 OCR |
 | 回溯与验证 | 判断结构化、到期自动判定、手动复盘、K 线上回放、修改历史 | 高级统计、导出报告 |
 | 持仓与交易 | 手动录入、图片识别、表格导入、持仓与盈亏计算、交易关联日记 | 多账户汇总、收益曲线对比基准 |
+| 全局 Agent | 全页面入口、工具调用读取全部数据、长期记忆、多会话长对话 | 向量检索记忆、主动复盘推送 |
 | 平台 | Android | Windows 桌面 |
 | 数据 | 本地 SQLite + 导入导出 | 云同步、多端 |
 
@@ -85,7 +86,7 @@
   ```
 - **AI 判断也可验证**：`outlook` 字段自动生成一条“AI 判断”记录，与用户判断走同一套验证流程，可在统计里对比“我 vs AI”准确率
 - 历史分析列表可查看、可一键引用到日记
-- 模型配置：设置页填写 API Key，**默认 DeepSeek**（`deepseek-chat`，可切换 `deepseek-reasoner`）
+- 模型配置：设置页填写 API Key，**默认 DeepSeek**（`deepseek-chat`，可切换 `deepseek-reasoner`）；各任务（大盘分析 / Agent / 图片识别 / 表格映射）可分别选模型
   - 内置预设：DeepSeek、通义千问、Kimi、智谱 GLM、Anthropic Claude、OpenAI
   - 自定义：任意 OpenAI 兼容接口（base URL + model + key）
   - 可为不同任务分别指定模型：大盘分析 / 图片识别（需支持视觉的模型）/ 表格字段映射
@@ -199,6 +200,53 @@
 - 统计：每笔交易结果、胜率、盈亏比、按标的 / 板块 / 月份汇总；与日记情绪、观点交叉分析（如“FOMO 状态下买入的胜率”）
 - 交易与持仓也可修改，同样保留修改历史
 
+### 3.5 全局 Agent 助手
+
+一个贯穿全 App 的 AI 助手，能读取 App 内全部数据（大盘、日记、判断与验证结果、持仓交易、历史 AI 分析），提供分析与建议，有长期记忆，支持长期多轮对话。
+
+**3.5.1 入口与上下文**
+- 所有页面右下角都有全局入口（日记页与快捷输入按钮错开），另有独立的对话列表页
+- **感知当前页面**：在某天日记页打开就自动带上“当天日记”作为上下文，在个股详情页打开就带上该标的，在复盘页打开就带上当前判断
+- 常用指令快捷卡片：“今天盘面怎么看”“复盘我本周的判断”“我最近哪类判断最不准”“检查我的持仓风险”“总结我 FOMO 时的交易表现”
+
+**3.5.2 能力（工具调用）**
+Agent 通过 function calling 按需查询本地数据，而不是一次性把所有数据塞进提示词：
+
+| 工具 | 说明 |
+|---|---|
+| `get_market_overview` | 当前指数、宽度、成交额、板块排行 |
+| `get_quotes` / `get_kline` | 任意标的实时报价、K 线 |
+| `search_journal` | 按日期 / 关键词 / 标签 / 标的 / 情绪检索日记 |
+| `get_predictions` / `get_prediction_stats` | 判断明细、准确率统计（可按维度拆分） |
+| `get_positions` / `get_trades` / `get_pnl_stats` | 持仓、交易流水、盈亏统计 |
+| `get_ai_analyses` | 历史 AI 大盘分析及其验证结果 |
+| `get_revisions` | 某条记录的修改历史 |
+| `memory_search` / `memory_save` | 检索 / 写入长期记忆 |
+| `draft_journal_entry` / `draft_prediction` | **起草**日记或判断，用户在确认卡片上点“保存”才写入 |
+
+- 数据默认**只读**；任何写操作都必须经用户在确认卡片上确认
+- 工具调用过程在对话中折叠展示（“查询了 3 月以来的 42 条日记”），可展开查看
+- 回答中引用到的日记 / 判断 / 交易可点击跳转
+
+**3.5.3 记忆**
+- **长期记忆**：关于用户本人的稳定信息，分类为：交易风格、个人规则（如“不追涨停”）、偏好、经验教训、关注标的
+  - 来源：对话中 Agent 主动提议保存（用户确认）、用户说“记住……”、每次对话结束后自动提炼候选记忆（进入待确认列表）
+  - 记忆管理页：查看、编辑、置顶、删除；每条显示来源对话
+  - 检索：MVP 用关键词 + 分类 + 重要度 + 最近使用时间排序；后续可加向量检索
+  - 每轮对话自动注入置顶记忆 + 与问题相关的 Top-N 记忆
+- **对话记忆**：多会话（thread）永久保存；会话过长时自动把早期消息压缩成滚动摘要，保留最近 N 轮原文，实现无限长对话
+- 跨会话：新会话可通过 `memory_search` 和 `search_journal` 回忆以往内容
+
+**3.5.4 主动能力（可开关）**
+- 盘后自动生成“今日复盘”：汇总当天日记、判断、交易，并与大盘对照，指出与个人规则冲突的地方（如记忆里写了“不追高”，今天却追高买入）
+- 每周总结：判断准确率变化、情绪分布、交易表现
+
+**3.5.5 模型与隐私**
+- 使用 AI 设置中的“Agent”任务模型（默认 DeepSeek，需支持 function calling）
+- 数据权限开关：可分别允许 / 禁止 Agent 读取持仓交易、日记原文等；关闭的类别对应工具不可用
+- 首次使用提示：数据会发送到所选模型服务商
+- 免责：建议仅供参考，不构成投资建议
+
 ---
 
 ## 4. 非功能需求
@@ -292,6 +340,11 @@ trade            (id, account_id, instrument_code, side, ts, price, qty, amount,
 position_snapshot(id, account_id, instrument_code, date, qty, cost_price, source)
 import_batch     (id, kind[image|table], file_name, mapping_id NULL, ts, row_count, status)
 column_mapping   (id, name, broker, mapping[json])
+agent_thread     (id, title, summary, summary_upto_message_id, last_message_at, pinned)
+agent_message    (id, thread_id, role[user|assistant|tool], content, tool_calls[json],
+                  tool_call_id, ts, tokens)
+agent_memory     (id, kind[style|rule|preference|lesson|watch|fact], content,
+                  status[active|candidate], source_thread_id, importance, pinned, last_used_at)
 review_note      (id, prediction_id NULL, entry_id NULL, content, reasons[json])
 ai_analysis      (id, ts, trigger[manual|scheduled], provider, model, prompt_version,
                   input_digest, output[json], raw_text, tokens_in, tokens_out)
@@ -315,7 +368,8 @@ kline_cache      (code, period, date, o, h, l, c, v, amount)   -- 非同步表
 3. **复盘**：待复盘队列、历史判断列表、K 线回放、统计
 4. **持仓**：持仓列表与盈亏、交易流水、录入（手动 / 图片 / 表格）、导入预览确认
 5. **设置**：数据源与 Tushare token、源优先级、AI 模型与 Key、刷新频率、定时任务开关、常用短语、模板、判定阈值、账户与费率、红绿配色、导入导出、免责声明
-5. 全局：快捷输入弹层（Widget / 通知栏 / 悬浮按钮共用）
+6. **Agent**：全局入口浮层对话、会话列表、记忆管理（含待确认记忆）
+7. 全局：快捷输入弹层（Widget / 通知栏 / 悬浮按钮共用）
 
 ---
 
@@ -329,7 +383,8 @@ kline_cache      (code, period, date, o, h, l, c, v, amount)   -- 非同步表
 | M3 | 判断与验证：结构化判断、多级阈值、判定引擎、后台到期判定、复盘队列 | 构造历史数据可正确判定 |
 | M4 | AI 分析：DeepSeek 等 Provider、结构化输出、定时任务、AI 判断入验证 | 三个定时点自动产出分析 |
 | M5 | 持仓与交易：手动录入、表格导入、图片识别、持仓盈亏 | 导入一份交割单后持仓与盈亏正确 |
-| M6 | 回放与统计、Widget、备份导入导出、打磨 | 发布 v1.0 APK |
+| M6 | 全局 Agent：工具调用、多会话、滚动摘要、长期记忆、确认卡片 | 能基于本地数据回答“我本周判断准确率与原因” |
+| M7 | 回放与统计、Widget、备份导入导出、打磨 | 发布 v1.0 APK |
 | 后续 | Windows 桌面端 → 云同步 | |
 
 ---
@@ -345,3 +400,4 @@ kline_cache      (code, period, date, o, h, l, c, v, amount)   -- 非同步表
 | 持仓 / 交易 | 支持，手动 / 图片 / 表格三种录入 |
 | 判断锁定 | 不锁定，可事后修改，完整保留修改历史，统计可区分 |
 | 判定阈值 | 全局 / 标的类型 / 周期 / 单条四级可调 |
+| 全局 Agent | 新增：可读全部数据、工具调用、长期记忆、长对话；写操作需用户确认 |
