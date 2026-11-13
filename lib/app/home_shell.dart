@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../features/journal/journal_page.dart';
 import '../features/market/market_page.dart';
+import '../features/review/review_page.dart';
+import '../features/review/review_providers.dart';
 import '../features/settings/settings_page.dart';
 import 'providers.dart';
 
@@ -35,10 +39,25 @@ const _journalIndex = 1;
 
 class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = _journalIndex;
+  Timer? _verifyTimer;
+
+  @override
+  void dispose() {
+    _verifyTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    // 应用打开期间每 10 分钟检查一次到期判断（启动时复盘页也会检查一次）
+    _verifyTimer = Timer.periodic(const Duration(minutes: 10), (_) async {
+      try {
+        await ref.read(verificationServiceProvider).runDue();
+      } catch (_) {
+        // 网络不可用时下次再试
+      }
+    });
     // 启动后在后台同步交易日历与代码表（每天一次）
     Future.microtask(() async {
       try {
@@ -47,6 +66,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         // 离线或源不可用：下次启动再试
       }
     });
+  }
+
+  /// 复盘 Tab 显示待复盘数量。
+  Widget _badged(int index, Widget icon) {
+    if (index != 2) return icon;
+    final n = ref.watch(pendingReviewCountProvider);
+    return n == 0 ? icon : Badge(label: Text('$n'), child: icon);
   }
 
   void _openAgent() {
@@ -64,7 +90,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           // 大盘页仅在可见时构建，离开即停止行情轮询
           _index == 0 ? const MarketPage() : const SizedBox.shrink(),
           JournalPage(onOpenAgent: _openAgent),
-          const _PlaceholderPage(title: '复盘', icon: Icons.fact_check, milestone: 'M3'),
+          const ReviewPage(),
           const _PlaceholderPage(
               title: '持仓', icon: Icons.account_balance_wallet, milestone: 'M5'),
           const SettingsPage(),
@@ -81,10 +107,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: [
-          for (final t in _tabs)
+          for (final (i, t) in _tabs.indexed)
             NavigationDestination(
-              icon: Icon(t.icon),
-              selectedIcon: Icon(t.selectedIcon),
+              icon: _badged(i, Icon(t.icon)),
+              selectedIcon: _badged(i, Icon(t.selectedIcon)),
               label: t.label,
             ),
         ],
@@ -117,3 +143,4 @@ class _PlaceholderPage extends StatelessWidget {
     );
   }
 }
+

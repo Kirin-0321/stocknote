@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -66,24 +64,19 @@ class _ComposerState extends ConsumerState<Composer> {
     setState(() => _saving = true);
     try {
       final codes = await _suggest.resolve(parsed.instrumentRefs);
-      final repo = ref.read(journalRepositoryProvider);
-      final entry = await repo.create(
-        content: parsed.content,
-        classification: inferJudgeTarget(_cls, codes),
-        tags: parsed.tags,
-        instrumentCodes: codes,
-      );
+      // 保存条目、生成判断（判断类）、后台抓行情快照
+      await ref.read(journalServiceProvider).create(
+            content: parsed.content,
+            classification: inferJudgeTarget(_cls, codes),
+            tags: parsed.tags,
+            instrumentCodes: codes,
+          );
       _controller.clear();
       _suggest.reset();
       _panel = ComposerPanel.none;
-      // 连续记录时保留一级分类，清空二级与情绪
+      // 连续记录时保留一级分类，清空二级
       setState(() => _cls = EntryClass.empty.withCategory(_cls.categoryEnum));
       widget.onSaved?.call();
-      // 行情快照在后台抓取，不阻塞连续记录
-      final snapshots = ref.read(snapshotServiceProvider);
-      unawaited(snapshots.capture(codes).then((s) {
-        if (s != null) repo.attachSnapshot(entry.id, s.id);
-      }).catchError((_) {}));
     } finally {
       if (mounted) setState(() => _saving = false);
       _focus.requestFocus();
@@ -241,5 +234,6 @@ EntryClass inferJudgeTarget(EntryClass cls, List<String> codes) {
   };
   return cls.withField(TagField.subcategory, target.code);
 }
+
 
 

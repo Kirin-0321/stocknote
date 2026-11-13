@@ -12,7 +12,12 @@ import 'package:stocknote/data/market/sources.dart';
 import 'package:stocknote/data/repo/instrument_repository.dart';
 import 'package:stocknote/features/journal/widgets/composer_toolbar.dart';
 import 'package:stocknote/features/market/market_page.dart';
+import 'package:stocknote/features/review/prediction_detail_page.dart';
+import 'package:stocknote/core/calendar/trading_calendar.dart';
+import 'package:stocknote/data/repo/journal_repository.dart';
+import 'package:stocknote/data/repo/prediction_repository.dart';
 import 'package:stocknote/data/repo/quick_phrase_repository.dart';
+import 'package:stocknote/domain/journal/entry_class.dart';
 import 'package:stocknote/data/settings/settings_store.dart';
 
 import 'helpers/fake_market.dart';
@@ -20,6 +25,7 @@ import 'helpers/fake_market.dart';
 void main() {
   late AppDatabase db;
   late FakeSource source;
+  DateTime? clockOverride;
   // 2026-11-13 周五 10:05（上海）
   final clock = MarketClock.fromMarket(2026, 11, 13, 10, 5);
 
@@ -36,7 +42,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         databaseProvider.overrideWithValue(db),
-        clockProvider.overrideWithValue(() => clock),
+        clockProvider.overrideWithValue(() => clockOverride ?? clock),
         secretStoreProvider.overrideWithValue(MemorySecretStore()),
         marketSourcesProvider.overrideWithValue([source]),
       ],
@@ -212,6 +218,63 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('复盘：到期判断自动验证 → 待复盘 → 详情写复盘 → 统计', (tester) async {
+    // 前一交易日（11/12）盘中的判断：$600519 看多 T+1，到期 11/13；当前时钟 11/13 10:05 尚未到期
+    final cal = TradingCalendar();
+    await tester.runAsync(() async {
+      final journal = JournalRepository(db, cal, now: () => MarketClock.fromMarket(2026, 11, 12, 10, 0));
+      final e = await journal.create(
+        content: '放量突破看多',
+        instrumentCodes: ['600519.SH'],
+        classification: const EntryClass(category: 'judge', subcategory: 'stock', stance: 'bull', horizon: 't1'),
+      );
+      await PredictionRepository(db, cal, now: () => clock).syncFromEntry(e);
+    });
+    source.klines['600519.SH'] = [
+      const KBar(date: '20261111', open: 1400, high: 1400, low: 1400, close: 1400),
+      const KBar(date: '20261112', open: 1405, high: 1420, low: 1398, close: 1410),
+      const KBar(date: '20261113', open: 1412, high: 1440, low: 1408, close: 1435),
+    ];
+    clockOverride = MarketClock.fromMarket(2026, 11, 13, 16, 0);
+    await pumpApp(tester);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pumpAndSettle();
+
+    // 复盘 Tab 角标
+    expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('1')), findsOneWidget);
+    await tester.tap(find.text('复盘').last);
+    await tester.pumpAndSettle();
+    expect(find.text('待复盘 1'), findsOneWidget);
+    expect(find.text('正确'), findsOneWidget);
+    expect(find.text('+2.50%'), findsOneWidget); // 基准取前一日收盘 1400 → 1435
+
+    await tester.tap(find.textContaining('放量突破看多'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PredictionDetailPage), findsOneWidget);
+    await tester.dragUntilVisible(
+        find.byKey(const Key('review-save')),
+        find.descendant(of: find.byType(PredictionDetailPage), matching: find.byType(ListView)).first,
+        const Offset(0, -200));
+    await tester.drag(
+        find.descendant(of: find.byType(PredictionDetailPage), matching: find.byType(ListView)).first,
+        const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('逻辑正确'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('review-save')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byType(PredictionDetailPage))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('待复盘 0'), findsOneWidget);
+
+    await tester.tap(find.text('统计'));
+    await tester.pumpAndSettle();
+    expect(find.text('100%'), findsWidgets);
+    await disposeApp(tester);
+    clockOverride = null;
+  });
+
   testWidgets('切换到设置页可打开常用短语', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.text('设置').last);
@@ -222,6 +285,8 @@ void main() {
     await disposeApp(tester);
   });
 }
+
+
 
 
 

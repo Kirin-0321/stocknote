@@ -31,6 +31,13 @@ class FakeSource extends MarketSource {
         for (final c in codes) quote(c, 100 + codes.indexOf(c).toDouble(), 100),
       ]);
 
+  /// 代码 → 日 K（测试按需填充）
+  final Map<String, List<KBar>> klines = {};
+
+  @override
+  Future<List<KBar>> dailyKline(String code, {required String from, String? to}) =>
+      _run(() => (klines[code] ?? const <KBar>[]).where((b) => b.date.compareTo(from) >= 0).toList());
+
   @override
   Future<Breadth> breadth() => _run(() => const Breadth(up: 3000, down: 1800, flat: 200));
 

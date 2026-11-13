@@ -184,7 +184,7 @@ class _JournalPageState extends ConsumerState<JournalPage> {
 /// 软删除并提供撤销。
 Future<void> deleteEntryWithUndo(
     BuildContext context, WidgetRef ref, JournalEntry entry) async {
-  final repo = ref.read(journalRepositoryProvider);
+  final repo = ref.read(journalServiceProvider);
   final messenger = ScaffoldMessenger.of(context);
   await repo.delete(entry.id);
   messenger.showSnackBar(SnackBar(
@@ -283,3 +283,4 @@ class _EmptyDay extends StatelessWidget {
     );
   }
 }
+

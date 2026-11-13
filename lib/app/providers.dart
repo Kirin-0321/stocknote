@@ -15,7 +15,12 @@ import '../data/repo/calendar_repository.dart';
 import '../data/repo/instrument_repository.dart';
 import '../data/repo/journal_repository.dart';
 import '../data/repo/market_snapshot_repository.dart';
+import '../data/repo/prediction_repository.dart';
 import '../data/repo/quick_phrase_repository.dart';
+import '../data/repo/threshold_repository.dart';
+import '../data/service/journal_service.dart';
+import '../data/service/verification_service.dart';
+import '../domain/verify/threshold.dart';
 import '../data/settings/settings_store.dart';
 import '../data/sync/base_data_sync.dart';
 
@@ -203,6 +208,33 @@ final baseDataSyncProvider = Provider((ref) => BaseDataSync(
       instrumentRepo: ref.watch(instrumentRepositoryProvider),
       settings: ref.watch(settingsStoreProvider),
       now: ref.watch(clockProvider),
+    ));
+
+// ───────────── 判断与验证（M3） ─────────────
+
+final predictionRepositoryProvider = Provider((ref) => PredictionRepository(
+      ref.watch(databaseProvider),
+      ref.watch(tradingCalendarProvider),
+      now: ref.watch(clockProvider),
+    ));
+
+final thresholdRepositoryProvider =
+    Provider((ref) => ThresholdRepository(ref.watch(databaseProvider), now: ref.watch(clockProvider)));
+
+final thresholdConfigProvider =
+    FutureProvider<ThresholdConfig>((ref) => ref.watch(thresholdRepositoryProvider).load());
+
+final journalServiceProvider = Provider((ref) => JournalService(
+      journal: ref.watch(journalRepositoryProvider),
+      predictions: ref.watch(predictionRepositoryProvider),
+      snapshots: ref.watch(snapshotServiceProvider),
+    ));
+
+final verificationServiceProvider = Provider((ref) => VerificationService(
+      repo: ref.watch(predictionRepositoryProvider),
+      market: ref.watch(marketServiceProvider),
+      calendar: ref.watch(tradingCalendarProvider),
+      thresholds: () => ref.read(thresholdConfigProvider.future),
     ));
 
 /// 执行基础数据同步并刷新内存中的交易日历。

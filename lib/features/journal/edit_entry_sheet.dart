@@ -71,7 +71,7 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
     if (parsed.isEmpty) return;
     setState(() => _saving = true);
     final codes = await _suggest.resolve(parsed.instrumentRefs);
-    await ref.read(journalRepositoryProvider).update(
+    await ref.read(journalServiceProvider).update(
           widget.entry.id,
           content: parsed.content,
           classification: _cls,
@@ -144,5 +144,6 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
     );
   }
 }
+
 
 

@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'data_source_page.dart';
 import 'quick_phrases_page.dart';
+import 'threshold_page.dart';
 
 /// 设置页。M1 先提供常用短语管理，其余项随里程碑补充（spec §6）。
 class SettingsPage extends StatelessWidget {
@@ -21,6 +22,14 @@ class SettingsPage extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => const QuickPhrasesPage())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.tune),
+          title: const Text('判定阈值'),
+          subtitle: const Text('判断验证时"震荡"区间，按类型 / 周期设置'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const ThresholdPage())),
         ),
         const _Section('数据与 AI'),
         ListTile(
