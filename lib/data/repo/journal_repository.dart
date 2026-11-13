@@ -120,6 +120,12 @@ class JournalRepository {
         .write(JournalEntriesCompanion(deletedAt: Value(ms), updatedAt: Value(ms)));
   }
 
+  /// 关联行情快照。属于系统字段，不产生修改历史。
+  Future<void> attachSnapshot(String id, String snapshotId) async {
+    await (_db.update(_db.journalEntries)..where((e) => e.id.equals(id)))
+        .write(JournalEntriesCompanion(snapshotId: Value(snapshotId)));
+  }
+
   /// 撤销软删除。
   Future<void> restore(String id) async {
     await (_db.update(_db.journalEntries)..where((e) => e.id.equals(id))).write(

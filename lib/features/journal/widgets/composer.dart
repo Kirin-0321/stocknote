@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -47,17 +49,25 @@ class _ComposerState extends ConsumerState<Composer> {
     if (parsed.isEmpty || _saving) return;
     setState(() => _saving = true);
     try {
-      await ref.read(journalRepositoryProvider).create(
-            content: parsed.content,
-            stance: _attrs.stance?.code,
-            action: _attrs.action?.code,
-            emotion: _attrs.emotion?.code,
-            tags: parsed.tags,
-            instrumentCodes: parsed.instrumentRefs,
-          );
+      final codes =
+          await ref.read(instrumentRepositoryProvider).resolveRefs(parsed.instrumentRefs);
+      final repo = ref.read(journalRepositoryProvider);
+      final entry = await repo.create(
+        content: parsed.content,
+        stance: _attrs.stance?.code,
+        action: _attrs.action?.code,
+        emotion: _attrs.emotion?.code,
+        tags: parsed.tags,
+        instrumentCodes: codes,
+      );
       _controller.clear();
       setState(() => _attrs = EntryAttributes.empty);
       widget.onSaved?.call();
+      // 行情快照在后台抓取，不阻塞连续记录
+      final snapshots = ref.read(snapshotServiceProvider);
+      unawaited(snapshots.capture(codes).then((s) {
+        if (s != null) repo.attachSnapshot(entry.id, s.id);
+      }).catchError((_) {}));
     } finally {
       if (mounted) setState(() => _saving = false);
       _focus.requestFocus();

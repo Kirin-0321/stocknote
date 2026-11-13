@@ -23,6 +23,30 @@ String formatDateTitle(DateTime date, {DateTime? today}) {
   return '$prefix${date.month}月${date.day}日 ${_weekdays[date.weekday - 1]}';
 }
 
+/// 金额（元）→ `1.23万亿` / `4490亿` / `3.2亿` / `5600万`。
+String formatAmount(double? yuan) {
+  if (yuan == null) return '--';
+  final a = yuan.abs();
+  if (a >= 1e12) return '${(yuan / 1e12).toStringAsFixed(2)}万亿';
+  if (a >= 1e10) return '${(yuan / 1e8).toStringAsFixed(0)}亿';
+  if (a >= 1e8) return '${(yuan / 1e8).toStringAsFixed(2)}亿';
+  if (a >= 1e4) return '${(yuan / 1e4).toStringAsFixed(0)}万';
+  return yuan.toStringAsFixed(0);
+}
+
+/// 涨跌幅 → `+1.23%` / `-0.50%`。
+String formatPct(double? pct, {int digits = 2}) {
+  if (pct == null) return '--';
+  final s = pct.toStringAsFixed(digits);
+  return pct > 0 ? '+$s%' : '$s%';
+}
+
+/// 价格：指数 / 股价保留 2 位，ETF 等低价品种 3 位。
+String formatPrice(double? p) {
+  if (p == null) return '--';
+  return p < 10 ? p.toStringAsFixed(3) : p.toStringAsFixed(2);
+}
+
 /// yyyyMMdd → `2026年11月13日 周五`。
 String formatTradeDate(String tradeDate) {
   final d = TradeDate.parse(tradeDate);

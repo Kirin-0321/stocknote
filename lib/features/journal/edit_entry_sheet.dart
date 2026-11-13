@@ -71,6 +71,8 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
     final parsed = EntryParser.parse(_controller.text);
     if (parsed.isEmpty) return;
     setState(() => _saving = true);
+    final codes =
+        await ref.read(instrumentRepositoryProvider).resolveRefs(parsed.instrumentRefs);
     await ref.read(journalRepositoryProvider).update(
           widget.entry.id,
           content: parsed.content,
@@ -78,7 +80,7 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
           action: Value(_attrs.action?.code),
           emotion: Value(_attrs.emotion?.code),
           tags: parsed.tags,
-          instrumentCodes: parsed.instrumentRefs,
+          instrumentCodes: codes,
           at: _ts == widget.entry.ts
               ? null
               : DateTime.fromMillisecondsSinceEpoch(_ts, isUtc: true),

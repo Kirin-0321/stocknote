@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'data_source_page.dart';
 import 'quick_phrases_page.dart';
 
 /// 设置页。M1 先提供常用短语管理，其余项随里程碑补充（spec §6）。
@@ -24,9 +25,11 @@ class SettingsPage extends StatelessWidget {
         const _Section('数据与 AI'),
         ListTile(
           leading: const Icon(Icons.storage_outlined),
-          title: const Text('数据源（Tushare Pro 等）'),
-          subtitle: Text('M2 开放', style: muted),
-          enabled: false,
+          title: const Text('数据源'),
+          subtitle: const Text('Tushare token、刷新频率、源优先级与状态'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const DataSourcePage())),
         ),
         ListTile(
           leading: const Icon(Icons.auto_awesome_outlined),

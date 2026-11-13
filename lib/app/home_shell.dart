@@ -1,16 +1,19 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../features/journal/journal_page.dart';
+import '../features/market/market_page.dart';
 import '../features/settings/settings_page.dart';
+import 'providers.dart';
 
 /// 主框架：底部 5 个 Tab + 全局 Agent 入口（spec §6）。
 ///
 /// 日记页底部有快捷输入栏，因此 Agent 入口放在输入栏内，其余页面用悬浮按钮。
-class HomeShell extends StatefulWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  ConsumerState<HomeShell> createState() => _HomeShellState();
 }
 
 class _Tab {
@@ -30,8 +33,21 @@ const _tabs = [
 
 const _journalIndex = 1;
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = _journalIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    // 启动后在后台同步交易日历与代码表（每天一次）
+    Future.microtask(() async {
+      try {
+        await runBaseDataSync(ref);
+      } catch (_) {
+        // 离线或源不可用：下次启动再试
+      }
+    });
+  }
 
   void _openAgent() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -45,7 +61,8 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(
         index: _index,
         children: [
-          const _PlaceholderPage(title: '大盘', icon: Icons.show_chart, milestone: 'M2'),
+          // 大盘页仅在可见时构建，离开即停止行情轮询
+          _index == 0 ? const MarketPage() : const SizedBox.shrink(),
           JournalPage(onOpenAgent: _openAgent),
           const _PlaceholderPage(title: '复盘', icon: Icons.fact_check, milestone: 'M3'),
           const _PlaceholderPage(

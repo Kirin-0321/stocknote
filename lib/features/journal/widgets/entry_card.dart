@@ -4,6 +4,7 @@ import '../../../core/format.dart';
 import '../../../data/db/app_database.dart';
 import 'attribute_chips.dart';
 import 'highlighted_text.dart';
+import 'snapshot_line.dart';
 
 /// 时间轴上的一条日记。
 class EntryCard extends StatelessWidget {
@@ -45,6 +46,7 @@ class EntryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   HighlightedText(entry.content),
+                  if (entry.snapshotId != null) SnapshotLine(snapshotId: entry.snapshotId!),
                   if (entry.stance != null ||
                       entry.action != null ||
                       entry.emotion != null ||

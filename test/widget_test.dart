@@ -7,14 +7,21 @@ import 'package:stocknote/app/app.dart';
 import 'package:stocknote/app/providers.dart';
 import 'package:stocknote/core/time/market_clock.dart';
 import 'package:stocknote/data/db/app_database.dart';
+import 'package:stocknote/data/market/sources.dart';
+import 'package:stocknote/features/market/market_page.dart';
 import 'package:stocknote/data/repo/quick_phrase_repository.dart';
+import 'package:stocknote/data/settings/settings_store.dart';
+
+import 'helpers/fake_market.dart';
 
 void main() {
   late AppDatabase db;
+  late FakeSource source;
   // 2026-11-13 周五 10:05（上海）
   final clock = MarketClock.fromMarket(2026, 11, 13, 10, 5);
 
   setUp(() {
+    source = FakeSource(SourceId.eastmoney);
     db = AppDatabase(DatabaseConnection(
       NativeDatabase.memory(),
       closeStreamsSynchronously: true,
@@ -27,6 +34,8 @@ void main() {
       overrides: [
         databaseProvider.overrideWithValue(db),
         clockProvider.overrideWithValue(() => clock),
+        secretStoreProvider.overrideWithValue(MemorySecretStore()),
+        marketSourcesProvider.overrideWithValue([source]),
       ],
       child: const StockNoteApp(),
     ));
@@ -87,6 +96,50 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('大盘看板显示指数、宽度、成交额、板块与 ETF', (tester) async {
+    await pumpApp(tester);
+    Finder boardScroll() => find.descendant(of: find.byType(MarketPage), matching: find.byType(Scrollable)).first;
+    await tester.tap(find.text('大盘').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('上证指数'), findsOneWidget);
+    expect(find.text('交易中 · 更新于', findRichText: false), findsNothing);
+    expect(find.textContaining('交易中'), findsOneWidget);
+    expect(find.text('涨 3000'), findsOneWidget);
+    expect(find.text('60'), findsOneWidget); // 涨停
+    expect(find.text('25.0%'), findsOneWidget); // 炸板率
+    await tester.scrollUntilVisible(find.text('+11.11%'), 200, scrollable: boardScroll()); // 较昨日同时段
+    expect(find.text('放量'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('行业涨0'), 200, scrollable: boardScroll());
+    expect(find.text('龙头0'), findsOneWidget);
+    await tester.ensureVisible(find.text('跌幅'));
+    await tester.pump();
+    await tester.tap(find.text('跌幅'));
+    await tester.pump();
+    expect(find.text('行业跌0'), findsOneWidget);
+
+    // 离开大盘页后停止轮询
+    await tester.tap(find.text('日记').last);
+    await tester.pump();
+    final calls = source.calls;
+    await tester.pump(const Duration(seconds: 30));
+    expect(source.calls, calls);
+    await disposeApp(tester);
+  });
+
+  testWidgets('记录日记时自动绑定行情快照', (tester) async {
+    await pumpApp(tester);
+    final input = find.byKey(const Key('composer-input'));
+    await tester.enterText(input, '看一下 \$600519');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('上证 '), findsOneWidget);
+    expect(find.textContaining('600519.SH '), findsOneWidget);
+    await disposeApp(tester);
+  });
+
   testWidgets('切换到设置页可打开常用短语', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.text('设置').last);
@@ -97,3 +150,5 @@ void main() {
     await disposeApp(tester);
   });
 }
+
+
