@@ -90,6 +90,12 @@ class SettingsStore {
 
   Future<void> setWatchlist(List<String> codes) => _set(_watchlistKey, jsonEncode(codes));
 
+  static const _defaultIndexKey = 'verify.default_index';
+
+  /// 大盘 / 指数判断未关联标的时的默认判定指数，null 表示用内置默认（上证指数）。
+  Future<String?> defaultIndex() => _get(_defaultIndexKey);
+  Future<void> setDefaultIndex(String code) => _set(_defaultIndexKey, code);
+
   Future<String?> lastBaseSyncDate() => _get(_lastSyncKey);
   Future<void> setLastBaseSyncDate(String yyyymmdd) => _set(_lastSyncKey, yyyymmdd);
 }

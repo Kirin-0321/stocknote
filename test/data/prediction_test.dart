@@ -66,6 +66,17 @@ void main() {
       expect(p.horizonType, 't1');
     });
 
+    test('指数判断未关联标的时按默认指数（可调）', () async {
+      final e = await judge(codes: const [], sub: 'index', stance: 'range');
+      expect((await preds.syncFromEntry(e))!.targetCode, '000001.SH');
+
+      final custom = PredictionRepository(db, cal, now: () => clock, defaultIndex: '000300.SH');
+      final e2 = await judge(codes: const [], sub: 'index');
+      expect((await custom.syncFromEntry(e2))!.targetCode, '000300.SH');
+      final e3 = await judge(codes: const ['399006.SZ'], sub: 'index');
+      expect((await custom.syncFromEntry(e3))!.targetCode, '399006.SZ', reason: '关联了指数时用关联的');
+    });
+
     test('非判断类或缺少方向 / 目标时不生成；改成观察后判断被移除', () async {
       final obs = await journal.create(content: 'x', classification: const EntryClass(category: 'observe'));
       expect(await preds.syncFromEntry(obs), isNull);

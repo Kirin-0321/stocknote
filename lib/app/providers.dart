@@ -63,6 +63,7 @@ class AppConfig {
     this.priority = const {},
     this.refreshSeconds = 5,
     this.watchlist = const [],
+    this.defaultIndex = PredictionRepository.defaultIndexCode,
   });
 
   final String? tushareToken;
@@ -73,6 +74,9 @@ class AppConfig {
   /// 自选（个股 / ETF / 板块混合）
   final List<String> watchlist;
 
+  /// 大盘 / 指数判断未关联标的时的默认判定指数
+  final String defaultIndex;
+
   AppConfig copyWith({
     String? tushareToken,
     bool clearToken = false,
@@ -80,6 +84,7 @@ class AppConfig {
     Map<Capability, List<SourceId>>? priority,
     int? refreshSeconds,
     List<String>? watchlist,
+    String? defaultIndex,
   }) =>
       AppConfig(
         tushareToken: clearToken ? null : (tushareToken ?? this.tushareToken),
@@ -87,6 +92,7 @@ class AppConfig {
         priority: priority ?? this.priority,
         refreshSeconds: refreshSeconds ?? this.refreshSeconds,
         watchlist: watchlist ?? this.watchlist,
+        defaultIndex: defaultIndex ?? this.defaultIndex,
       );
 
   static Future<AppConfig> load(SettingsStore settings, SecretStore secrets) async {
@@ -102,6 +108,7 @@ class AppConfig {
       priority: await settings.sourcePriority(),
       refreshSeconds: await settings.refreshSeconds(),
       watchlist: await settings.watchlist(),
+      defaultIndex: await settings.defaultIndex() ?? PredictionRepository.defaultIndexCode,
     );
   }
 }
@@ -137,6 +144,11 @@ class AppConfigNotifier extends Notifier<AppConfig> {
     list.contains(code) ? list.remove(code) : list.add(code);
     await ref.read(settingsStoreProvider).setWatchlist(list);
     state = state.copyWith(watchlist: list);
+  }
+
+  Future<void> setDefaultIndex(String code) async {
+    await ref.read(settingsStoreProvider).setDefaultIndex(code);
+    state = state.copyWith(defaultIndex: code);
   }
 
   Future<void> setRefreshSeconds(int s) async {
@@ -216,6 +228,7 @@ final predictionRepositoryProvider = Provider((ref) => PredictionRepository(
       ref.watch(databaseProvider),
       ref.watch(tradingCalendarProvider),
       now: ref.watch(clockProvider),
+      defaultIndex: ref.watch(appConfigProvider.select((c) => c.defaultIndex)),
     ));
 
 final thresholdRepositoryProvider =

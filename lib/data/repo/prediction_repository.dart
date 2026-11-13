@@ -44,9 +44,15 @@ class PredictionView {
 /// 用户判断由"判断"类日记自动生成并保持同步：一条日记最多一条判断；
 /// 每条判断按 [CheckpointPlan] 在多个时点各有一条结果。
 class PredictionRepository {
-  PredictionRepository(this._db, this._calendar, {DateTime Function()? now})
+  PredictionRepository(this._db, this._calendar,
+      {DateTime Function()? now, this.defaultIndex = defaultIndexCode})
       : _now = now ?? DateTime.now,
         _revisions = RevisionRecorder(_db, now: now);
+
+  static const defaultIndexCode = '000001.SH';
+
+  /// 大盘 / 指数判断未关联标的时的默认判定指数（设置中可调）。
+  final String defaultIndex;
 
   final AppDatabase _db;
   final TradingCalendar _calendar;
@@ -80,15 +86,16 @@ class PredictionRepository {
 
   // ───────────── 由日记同步 ─────────────
 
-  /// 日记 → 判断的目标代码：大盘默认上证指数；其余取第一个已解析的关联标的。
-  static String? targetOf(JournalEntry e) {
+  /// 日记 → 判断的目标代码：取第一个已解析的关联标的；
+  /// 大盘 / 指数判断未关联时用 [defaultIndex]。
+  String? targetOf(JournalEntry e) {
     final code = e.instrumentCodes.where((c) => c.contains('.')).firstOrNull;
     if (code != null) return code;
-    if (e.subcategory == 'market') return '000001.SH';
+    if (e.subcategory == 'market' || e.subcategory == 'index') return defaultIndex;
     return null;
   }
 
-  static bool qualifies(JournalEntry e) =>
+  bool qualifies(JournalEntry e) =>
       e.deletedAt == null && e.category == 'judge' && e.stance != null && targetOf(e) != null;
 
   Future<Prediction?> forEntry(String entryId) => (_db.select(_db.predictions)

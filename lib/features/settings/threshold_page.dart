@@ -97,6 +97,26 @@ class _ThresholdPageState extends ConsumerState<ThresholdPage> {
                 ),
               ),
               ListTile(
+                key: const Key('default-index'),
+                title: const Text('默认判定指数'),
+                subtitle: const Text('大盘 / 指数判断未用 \$ 关联标的时按此指数判定'),
+                trailing: DropdownButton<String>(
+                  value: ref.watch(appConfigProvider.select((c) => c.defaultIndex)),
+                  underline: const SizedBox(),
+                  items: [
+                    for (final e in indexShortNames.entries)
+                      DropdownMenuItem(value: e.key, child: Text(e.value)),
+                  ],
+                  onChanged: (v) async {
+                    if (v == null) return;
+                    await ref.read(appConfigProvider.notifier).setDefaultIndex(v);
+                    // 之前因缺少标的未生成判断的日记，按新默认补建
+                    await ref.read(journalServiceProvider).backfillPredictions();
+                  },
+                ),
+              ),
+              const Divider(),
+              ListTile(
                 title: const Text('全局默认'),
                 trailing: _picker(cfg.global, (v) => setState(() {
                       _cfg = cfg.copyWith(global: v);

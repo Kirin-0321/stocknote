@@ -36,7 +36,7 @@ class JournalService {
   }
 
   Future<void> _attachSnapshot(String entryId, List<String> codes) async {
-    final targets = {...codes, ?PredictionRepository.targetOf((await journal.get(entryId))!)}.toList();
+    final targets = {...codes, ?predictions.targetOf((await journal.get(entryId))!)}.toList();
     final s = await snapshots.capture(targets);
     if (s == null) return;
     await journal.attachSnapshot(entryId, s.id);
