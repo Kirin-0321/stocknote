@@ -167,70 +167,6 @@ class CategoryForm extends StatelessWidget {
   }
 }
 
-/// 分类选择列表（底部弹层）：一级分类与各自的二级选项、情绪聚合在一处，点"完成"返回。
-Future<EntryClass?> showCategorySheet(BuildContext context, EntryClass current) {
-  var value = current;
-  return showModalBottomSheet<EntryClass>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setSheetState) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Text('选择分类', style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
-              TextButton(
-                onPressed: () => setSheetState(() => value = EntryClass.empty),
-                child: const Text('清空'),
-              ),
-              FilledButton(
-                key: const Key('category-done'),
-                onPressed: () => Navigator.pop(context, value),
-                child: const Text('完成'),
-              ),
-            ]),
-            CategoryForm(value: value, onChanged: (v) => setSheetState(() => value = v)),
-          ]),
-        ),
-      ),
-    ),
-  );
-}
-
-/// 输入栏上的分类按钮：显示当前分类摘要，点击打开分类选择列表。
-class CategoryButton extends StatelessWidget {
-  const CategoryButton({super.key, required this.value, required this.onChanged});
-
-  final EntryClass value;
-  final ValueChanged<EntryClass> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final cat = value.categoryEnum;
-    final color = categoryColor(context, cat);
-    final parts = [
-      ...value.labels(),
-      ?labelFor(cat, TagField.emotion, value.emotion),
-    ];
-    return ActionChip(
-      key: const Key('category-button'),
-      avatar: Icon(Icons.label_outline, size: 16, color: color),
-      label: Text(parts.isEmpty ? (cat?.label ?? '分类') : parts.join(' · ')),
-      side: BorderSide(color: color.withValues(alpha: 0.7)),
-      backgroundColor: cat == null ? null : color.withValues(alpha: 0.12),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      onPressed: () async {
-        final r = await showCategorySheet(context, value);
-        if (r != null) onChanged(r);
-      },
-    );
-  }
-}
-
 /// 卡片上展示分类标签：分类徽标 + 方向 / 动作 / 周期 + 情绪。
 class ClassTags extends StatelessWidget {
   const ClassTags({super.key, required this.value});
@@ -274,3 +210,4 @@ class ClassTags extends StatelessWidget {
     ]);
   }
 }
+

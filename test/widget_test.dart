@@ -10,6 +10,7 @@ import 'package:stocknote/data/db/app_database.dart';
 import 'package:stocknote/data/market/models.dart';
 import 'package:stocknote/data/market/sources.dart';
 import 'package:stocknote/data/repo/instrument_repository.dart';
+import 'package:stocknote/features/journal/widgets/composer_toolbar.dart';
 import 'package:stocknote/features/market/market_page.dart';
 import 'package:stocknote/data/repo/quick_phrase_repository.dart';
 import 'package:stocknote/data/settings/settings_store.dart';
@@ -68,24 +69,40 @@ void main() {
     await tester.tap(input);
     await tester.pumpAndSettle();
 
-    // 输入栏只有一排：分类按钮 + 常用短语
-    expect(find.byKey(const Key('category-button')), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, '看多'), findsNothing);
+    // 输入栏一排四个按钮：一级 / 二级 / 标签 / 快捷；未打开时不显示列表
+    for (final k in ['tb-category', 'tb-sub', 'tb-tags', 'tb-phrases']) {
+      expect(find.byKey(Key(k)), findsOneWidget);
+    }
+    expect(find.byKey(const Key('opt-category-judge')), findsNothing);
 
-    // 打开分类列表：一级"判断" → 二级"大盘""看多" → 完成
-    await tester.tap(find.byKey(const Key('category-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, '判断'));
+    // 一级 → 选"判断"后自动展开二级列表 → 选"大盘"后自动展开标签列表 → 选"看多""T+1"
+    await tester.tap(find.byKey(const Key('tb-category')));
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChoiceChip, '大盘'));
+    await tester.tap(find.byKey(const Key('opt-category-judge')));
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChoiceChip, '看多'));
+    expect(find.byKey(const Key('opt-subcategory-market')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('opt-subcategory-market')));
     await tester.pump();
-    await tester.tap(find.byKey(const Key('category-done')));
-    await tester.pumpAndSettle();
-    expect(find.text('判断·大盘 · 看多'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('opt-stance-bull')));
+    await tester.pump();
+    await tester.scrollUntilVisible(find.byKey(const Key('opt-horizon-t1')), 60,
+        scrollable: find.descendant(of: find.byType(ChoicePanel), matching: find.byType(Scrollable)));
+    await tester.tap(find.byKey(const Key('opt-horizon-t1')));
+    await tester.pump();
+    // 按钮显示当前选择
+    expect(find.descendant(of: find.byKey(const Key('tb-category')), matching: find.text('判断')),
+        findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('tb-sub')), matching: find.text('大盘')),
+        findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('tb-tags')), matching: find.text('看多·T+1')),
+        findsOneWidget);
 
-    await tester.tap(find.widgetWithText(ActionChip, '放量突破'));
+    // 快捷：插入短语后列表关闭
+    await tester.tap(find.byKey(const Key('tb-phrases')));
+    await tester.pump();
+    await tester.tap(find.text('放量突破'));
+    await tester.pump();
+    expect(find.text('缩量回调'), findsNothing);
     await tester.pump();
     await tester.enterText(input, '放量突破 #突破');
     await tester.testTextInput.receiveAction(TextInputAction.send);
@@ -205,6 +222,7 @@ void main() {
     await disposeApp(tester);
   });
 }
+
 
 
 

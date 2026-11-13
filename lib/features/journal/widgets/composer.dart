@@ -10,7 +10,7 @@ import '../../../domain/journal/entry_class.dart';
 import '../../../domain/journal/entry_parser.dart';
 import '../../../domain/journal/vocab.dart';
 import '../journal_providers.dart';
-import 'attribute_chips.dart';
+import 'composer_toolbar.dart';
 import 'instrument_suggest.dart';
 
 /// 日记页底部常驻的快捷输入栏（spec 3.2.2）。
@@ -33,6 +33,7 @@ class _ComposerState extends ConsumerState<Composer> {
   late final _suggest =
       InstrumentSuggestController(_controller, ref.read(instrumentRepositoryProvider));
   var _cls = EntryClass.empty;
+  var _panel = ComposerPanel.none;
   var _expanded = false;
   var _saving = false;
 
@@ -74,6 +75,7 @@ class _ComposerState extends ConsumerState<Composer> {
       );
       _controller.clear();
       _suggest.reset();
+      _panel = ComposerPanel.none;
       // 连续记录时保留一级分类，清空二级与情绪
       setState(() => _cls = EntryClass.empty.withCategory(_cls.categoryEnum));
       widget.onSaved?.call();
@@ -117,37 +119,53 @@ class _ComposerState extends ConsumerState<Composer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 输入 $ 时显示标的联想，否则显示一排：分类按钮 + 常用短语
+            // 按钮上方的弹出匹配列表：$ 标的联想优先，其次是工具栏按钮打开的列表
             if (_suggest.active)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: InstrumentSuggestPanel(controller: _suggest),
               )
-            else if (_expanded)
-              SizedBox(
-                height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-                  children: [
-                    CategoryButton(value: _cls, onChanged: (v) => setState(() => _cls = v)),
-                    Container(
-                      width: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      color: theme.dividerColor,
-                    ),
-                    for (final p in phrases)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ActionChip(
-                          label: Text(p.phrase),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          onPressed: () => _insertPhrase(p.phrase),
+            else if (_expanded && _panel != ComposerPanel.none)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: ChoicePanel(
+                  key: ValueKey(_panel),
+                  sections: _panel == ComposerPanel.phrases
+                      ? [
+                          (
+                            null,
+                            [
+                              for (final p in phrases)
+                                PanelItem(
+                                  key: 'opt-phrase-${p.id}',
+                                  label: p.phrase,
+                                  badge: '快捷',
+                                  onTap: () {
+                                    _insertPhrase(p.phrase);
+                                    setState(() => _panel = ComposerPanel.none);
+                                  },
+                                ),
+                            ]
+                          ),
+                        ]
+                      : classificationSections(
+                          context,
+                          panel: _panel,
+                          value: _cls,
+                          onChanged: (v) => setState(() => _cls = v),
+                          onAdvance: (p) => setState(() => _panel = p),
                         ),
-                      ),
-                  ],
+                  empty: _panel == ComposerPanel.phrases ? '还没有常用短语，可在 设置 → 常用短语 添加' : null,
                 ),
+              ),
+            if (_expanded)
+              ComposerToolbar(
+                value: _cls,
+                open: _suggest.active ? ComposerPanel.none : _panel,
+                onToggle: (p) {
+                  if (_suggest.active) _suggest.dismiss();
+                  setState(() => _panel = p);
+                },
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
@@ -187,7 +205,10 @@ class _ComposerState extends ConsumerState<Composer> {
                       icon: const Icon(Icons.keyboard_arrow_down),
                       onPressed: () {
                         _focus.unfocus();
-                        setState(() => _expanded = false);
+                        setState(() {
+                          _expanded = false;
+                          _panel = ComposerPanel.none;
+                        });
                       },
                     ),
                   IconButton.filled(
@@ -220,4 +241,5 @@ EntryClass inferJudgeTarget(EntryClass cls, List<String> codes) {
   };
   return cls.withField(TagField.subcategory, target.code);
 }
+
 

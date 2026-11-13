@@ -268,7 +268,7 @@ class _EmptyDay extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.edit_note, size: 48, color: theme.colorScheme.outlineVariant),
