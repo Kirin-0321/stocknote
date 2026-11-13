@@ -6043,6 +6043,18 @@ class $PredictionResultsTable extends PredictionResults
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _checkpointMeta = const VerificationMeta(
+    'checkpoint',
+  );
+  @override
+  late final GeneratedColumn<String> checkpoint = GeneratedColumn<String>(
+    'checkpoint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('c1'),
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -6138,6 +6150,7 @@ class $PredictionResultsTable extends PredictionResults
     deletedAt,
     deviceId,
     predictionId,
+    checkpoint,
     status,
     actualClose,
     changePct,
@@ -6204,6 +6217,12 @@ class $PredictionResultsTable extends PredictionResults
       );
     } else if (isInserting) {
       context.missing(_predictionIdMeta);
+    }
+    if (data.containsKey('checkpoint')) {
+      context.handle(
+        _checkpointMeta,
+        checkpoint.isAcceptableOrUnknown(data['checkpoint']!, _checkpointMeta),
+      );
     }
     if (data.containsKey('status')) {
       context.handle(
@@ -6296,6 +6315,10 @@ class $PredictionResultsTable extends PredictionResults
         DriftSqlType.string,
         data['${effectivePrefix}prediction_id'],
       )!,
+      checkpoint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checkpoint'],
+      )!,
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -6346,6 +6369,9 @@ class PredictionResult extends DataClass
   final String deviceId;
   final String predictionId;
 
+  /// 验证时点：c0 当日收盘 | o1 次日开盘 | c1 次日收盘 | c3 | c5 | c20（v3 新增）
+  final String checkpoint;
+
   /// correct | wrong | partial | pending_manual
   final String status;
   final double? actualClose;
@@ -6362,6 +6388,7 @@ class PredictionResult extends DataClass
     this.deletedAt,
     required this.deviceId,
     required this.predictionId,
+    required this.checkpoint,
     required this.status,
     this.actualClose,
     this.changePct,
@@ -6382,6 +6409,7 @@ class PredictionResult extends DataClass
     }
     map['device_id'] = Variable<String>(deviceId);
     map['prediction_id'] = Variable<String>(predictionId);
+    map['checkpoint'] = Variable<String>(checkpoint);
     map['status'] = Variable<String>(status);
     if (!nullToAbsent || actualClose != null) {
       map['actual_close'] = Variable<double>(actualClose);
@@ -6411,6 +6439,7 @@ class PredictionResult extends DataClass
           : Value(deletedAt),
       deviceId: Value(deviceId),
       predictionId: Value(predictionId),
+      checkpoint: Value(checkpoint),
       status: Value(status),
       actualClose: actualClose == null && nullToAbsent
           ? const Value.absent()
@@ -6438,6 +6467,7 @@ class PredictionResult extends DataClass
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
       deviceId: serializer.fromJson<String>(json['deviceId']),
       predictionId: serializer.fromJson<String>(json['predictionId']),
+      checkpoint: serializer.fromJson<String>(json['checkpoint']),
       status: serializer.fromJson<String>(json['status']),
       actualClose: serializer.fromJson<double?>(json['actualClose']),
       changePct: serializer.fromJson<double?>(json['changePct']),
@@ -6458,6 +6488,7 @@ class PredictionResult extends DataClass
       'deletedAt': serializer.toJson<int?>(deletedAt),
       'deviceId': serializer.toJson<String>(deviceId),
       'predictionId': serializer.toJson<String>(predictionId),
+      'checkpoint': serializer.toJson<String>(checkpoint),
       'status': serializer.toJson<String>(status),
       'actualClose': serializer.toJson<double?>(actualClose),
       'changePct': serializer.toJson<double?>(changePct),
@@ -6476,6 +6507,7 @@ class PredictionResult extends DataClass
     Value<int?> deletedAt = const Value.absent(),
     String? deviceId,
     String? predictionId,
+    String? checkpoint,
     String? status,
     Value<double?> actualClose = const Value.absent(),
     Value<double?> changePct = const Value.absent(),
@@ -6491,6 +6523,7 @@ class PredictionResult extends DataClass
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     deviceId: deviceId ?? this.deviceId,
     predictionId: predictionId ?? this.predictionId,
+    checkpoint: checkpoint ?? this.checkpoint,
     status: status ?? this.status,
     actualClose: actualClose.present ? actualClose.value : this.actualClose,
     changePct: changePct.present ? changePct.value : this.changePct,
@@ -6510,6 +6543,9 @@ class PredictionResult extends DataClass
       predictionId: data.predictionId.present
           ? data.predictionId.value
           : this.predictionId,
+      checkpoint: data.checkpoint.present
+          ? data.checkpoint.value
+          : this.checkpoint,
       status: data.status.present ? data.status.value : this.status,
       actualClose: data.actualClose.present
           ? data.actualClose.value
@@ -6534,6 +6570,7 @@ class PredictionResult extends DataClass
           ..write('deletedAt: $deletedAt, ')
           ..write('deviceId: $deviceId, ')
           ..write('predictionId: $predictionId, ')
+          ..write('checkpoint: $checkpoint, ')
           ..write('status: $status, ')
           ..write('actualClose: $actualClose, ')
           ..write('changePct: $changePct, ')
@@ -6554,6 +6591,7 @@ class PredictionResult extends DataClass
     deletedAt,
     deviceId,
     predictionId,
+    checkpoint,
     status,
     actualClose,
     changePct,
@@ -6573,6 +6611,7 @@ class PredictionResult extends DataClass
           other.deletedAt == this.deletedAt &&
           other.deviceId == this.deviceId &&
           other.predictionId == this.predictionId &&
+          other.checkpoint == this.checkpoint &&
           other.status == this.status &&
           other.actualClose == this.actualClose &&
           other.changePct == this.changePct &&
@@ -6590,6 +6629,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
   final Value<int?> deletedAt;
   final Value<String> deviceId;
   final Value<String> predictionId;
+  final Value<String> checkpoint;
   final Value<String> status;
   final Value<double?> actualClose;
   final Value<double?> changePct;
@@ -6606,6 +6646,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
     this.deletedAt = const Value.absent(),
     this.deviceId = const Value.absent(),
     this.predictionId = const Value.absent(),
+    this.checkpoint = const Value.absent(),
     this.status = const Value.absent(),
     this.actualClose = const Value.absent(),
     this.changePct = const Value.absent(),
@@ -6623,6 +6664,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
     this.deletedAt = const Value.absent(),
     required String deviceId,
     required String predictionId,
+    this.checkpoint = const Value.absent(),
     required String status,
     this.actualClose = const Value.absent(),
     this.changePct = const Value.absent(),
@@ -6646,6 +6688,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
     Expression<int>? deletedAt,
     Expression<String>? deviceId,
     Expression<String>? predictionId,
+    Expression<String>? checkpoint,
     Expression<String>? status,
     Expression<double>? actualClose,
     Expression<double>? changePct,
@@ -6663,6 +6706,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (deviceId != null) 'device_id': deviceId,
       if (predictionId != null) 'prediction_id': predictionId,
+      if (checkpoint != null) 'checkpoint': checkpoint,
       if (status != null) 'status': status,
       if (actualClose != null) 'actual_close': actualClose,
       if (changePct != null) 'change_pct': changePct,
@@ -6682,6 +6726,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
     Value<int?>? deletedAt,
     Value<String>? deviceId,
     Value<String>? predictionId,
+    Value<String>? checkpoint,
     Value<String>? status,
     Value<double?>? actualClose,
     Value<double?>? changePct,
@@ -6699,6 +6744,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
       deletedAt: deletedAt ?? this.deletedAt,
       deviceId: deviceId ?? this.deviceId,
       predictionId: predictionId ?? this.predictionId,
+      checkpoint: checkpoint ?? this.checkpoint,
       status: status ?? this.status,
       actualClose: actualClose ?? this.actualClose,
       changePct: changePct ?? this.changePct,
@@ -6731,6 +6777,9 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
     }
     if (predictionId.present) {
       map['prediction_id'] = Variable<String>(predictionId.value);
+    }
+    if (checkpoint.present) {
+      map['checkpoint'] = Variable<String>(checkpoint.value);
     }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
@@ -6771,6 +6820,7 @@ class PredictionResultsCompanion extends UpdateCompanion<PredictionResult> {
           ..write('deletedAt: $deletedAt, ')
           ..write('deviceId: $deviceId, ')
           ..write('predictionId: $predictionId, ')
+          ..write('checkpoint: $checkpoint, ')
           ..write('status: $status, ')
           ..write('actualClose: $actualClose, ')
           ..write('changePct: $changePct, ')
@@ -18224,6 +18274,7 @@ typedef $$PredictionResultsTableCreateCompanionBuilder =
       Value<int?> deletedAt,
       required String deviceId,
       required String predictionId,
+      Value<String> checkpoint,
       required String status,
       Value<double?> actualClose,
       Value<double?> changePct,
@@ -18242,6 +18293,7 @@ typedef $$PredictionResultsTableUpdateCompanionBuilder =
       Value<int?> deletedAt,
       Value<String> deviceId,
       Value<String> predictionId,
+      Value<String> checkpoint,
       Value<String> status,
       Value<double?> actualClose,
       Value<double?> changePct,
@@ -18289,6 +18341,11 @@ class $$PredictionResultsTableFilterComposer
 
   ColumnFilters<String> get predictionId => $composableBuilder(
     column: $table.predictionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checkpoint => $composableBuilder(
+    column: $table.checkpoint,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18372,6 +18429,11 @@ class $$PredictionResultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get checkpoint => $composableBuilder(
+    column: $table.checkpoint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -18439,6 +18501,11 @@ class $$PredictionResultsTableAnnotationComposer
 
   GeneratedColumn<String> get predictionId => $composableBuilder(
     column: $table.predictionId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get checkpoint => $composableBuilder(
+    column: $table.checkpoint,
     builder: (column) => column,
   );
 
@@ -18517,6 +18584,7 @@ class $$PredictionResultsTableTableManager
                 Value<int?> deletedAt = const Value.absent(),
                 Value<String> deviceId = const Value.absent(),
                 Value<String> predictionId = const Value.absent(),
+                Value<String> checkpoint = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<double?> actualClose = const Value.absent(),
                 Value<double?> changePct = const Value.absent(),
@@ -18533,6 +18601,7 @@ class $$PredictionResultsTableTableManager
                 deletedAt: deletedAt,
                 deviceId: deviceId,
                 predictionId: predictionId,
+                checkpoint: checkpoint,
                 status: status,
                 actualClose: actualClose,
                 changePct: changePct,
@@ -18551,6 +18620,7 @@ class $$PredictionResultsTableTableManager
                 Value<int?> deletedAt = const Value.absent(),
                 required String deviceId,
                 required String predictionId,
+                Value<String> checkpoint = const Value.absent(),
                 required String status,
                 Value<double?> actualClose = const Value.absent(),
                 Value<double?> changePct = const Value.absent(),
@@ -18567,6 +18637,7 @@ class $$PredictionResultsTableTableManager
                 deletedAt: deletedAt,
                 deviceId: deviceId,
                 predictionId: predictionId,
+                checkpoint: checkpoint,
                 status: status,
                 actualClose: actualClose,
                 changePct: changePct,

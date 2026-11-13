@@ -43,16 +43,21 @@ void main() {
       market: MarketService(MarketRouter([ts])),
       calendar: cal,
       thresholds: () async => const ThresholdConfig(),
+      now: () => now,
     );
     final r = await svc.runDue();
     for (final v in await preds.all()) {
       final p = v.prediction;
       // ignore: avoid_print
-      print('${p.targetCode} ${p.direction} ${p.horizonType} due=${p.dueDate} base=${p.basePrice} '
-          '→ ${v.result?.actualClose} ${v.result?.changePct?.toStringAsFixed(2)}% ${v.result?.status}');
+      final cps = v.plan.points.keys
+          .map((c) => '${c.short}:${v.results[c]?.actualClose ?? '-'}(${v.results[c]?.status ?? '待定'})')
+          .join(' ');
+      // ignore: avoid_print
+      print('${p.targetCode} ${p.direction} 主=${v.primary.short} base=${p.basePrice} | $cps');
     }
-    expect(r.verified, 3, reason: 'errors=${r.errors} waiting=${r.waiting}');
+    expect(r.verified, greaterThanOrEqualTo(9), reason: 'errors=${r.errors} waiting=${r.waiting}');
     await db.close();
   }, skip: token == null ? '未设置 TUSHARE_TOKEN' : null, timeout: const Timeout(Duration(minutes: 2)));
 }
+
 

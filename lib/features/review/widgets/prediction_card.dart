@@ -96,6 +96,21 @@ class PredictionCard extends StatelessWidget {
               HighlightedText(view.entry!.content, maxLines: 2, style: theme.textTheme.bodyMedium),
             ],
             const SizedBox(height: 6),
+            // 各时点结果：当收 / 次开 / 次收 / T+3 / T+5（主时点加粗）
+            Wrap(spacing: 8, runSpacing: 2, children: [
+              for (final cp in view.plan.points.keys)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(cp.short,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                        fontWeight: cp == view.primary ? FontWeight.w800 : null,
+                        decoration: cp == view.primary ? TextDecoration.underline : null,
+                      )),
+                  const SizedBox(width: 2),
+                  Icon(statusIcon(view.statusAt(cp)), size: 13, color: statusColor(context, view.statusAt(cp))),
+                ]),
+            ]),
+            const SizedBox(height: 4),
             Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
               if (view.entry != null) Text(formatDateTime(view.entry!.ts), style: muted),
               if (p.basePrice != null)

@@ -26,9 +26,12 @@ class FakeSource extends MarketSource {
   static Quote quote(String code, double price, double pre, {String? name}) =>
       Quote(code: code, name: name ?? indexShortNames[code] ?? code, price: price, preClose: pre, amount: 1e11);
 
+  /// 自定义报价（测试用）
+  Quote Function(String code)? quoteOverride;
+
   @override
   Future<List<Quote>> quotes(List<String> codes) => _run(() => [
-        for (final c in codes) quote(c, 100 + codes.indexOf(c).toDouble(), 100),
+        for (final c in codes) quoteOverride?.call(c) ?? quote(c, 100 + codes.indexOf(c).toDouble(), 100),
       ]);
 
   /// 代码 → 日 K（测试按需填充）

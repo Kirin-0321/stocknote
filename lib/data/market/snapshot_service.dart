@@ -25,7 +25,7 @@ class SnapshotService {
   final DateTime Function() _now;
 
   static const freshness = Duration(seconds: 60);
-  static const fetchTimeout = Duration(seconds: 4);
+  static const fetchTimeout = Duration(seconds: 10);
 
   Future<MarketSnapshot?> capture(List<String> instrumentCodes) async {
     final now = _now();
@@ -70,3 +70,4 @@ class SnapshotService {
     );
   }
 }
+

@@ -47,7 +47,7 @@ class EntryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   HighlightedText(entry.content),
-                  if (entry.snapshotId != null) SnapshotLine(snapshotId: entry.snapshotId!),
+                  SnapshotLine(entry: entry),
                   if (entry.classification.labels().isNotEmpty ||
                       entry.emotion != null ||
                       entry.revisionCount > 0)
@@ -69,4 +69,5 @@ class EntryCard extends StatelessWidget {
     );
   }
 }
+
 

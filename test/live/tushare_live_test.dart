@@ -21,6 +21,14 @@ void main() {
     expect(q.every((e) => e.price > 0), isTrue);
   }, skip: skip);
 
+  test('板块实时估算（成分股等权）', () async {
+    final q = (await ts.quotes(['BK1036.EM', 'BK1326.EM'])).toList();
+    // ignore: avoid_print
+    print(q.map((e) => '${e.name} ≈${e.price.toStringAsFixed(2)} ${e.changePct.toStringAsFixed(2)}%').join(' | '));
+    expect(q, hasLength(2));
+    expect(q.every((e) => e.approx && e.preClose > 0), isTrue);
+  }, skip: skip);
+
   test('全市场宽度与涨跌停', () async {
     final b = await ts.breadth();
     final l = await ts.limitStats('');

@@ -30,11 +30,15 @@ class Quote {
     this.volume,
     this.amount,
     this.time,
+    this.approx = false,
   });
 
   final String code;
   final String name;
   final double price;
+
+  /// 估算值（如由成分股等权推算的板块涨跌）
+  final bool approx;
   final double preClose;
   final double? open;
   final double? high;
@@ -55,6 +59,7 @@ class Quote {
         'price': price,
         'pct': double.parse(changePct.toStringAsFixed(3)),
         if (amount != null) 'amount': amount,
+        if (approx) 'approx': true,
       };
 }
 

@@ -76,7 +76,7 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
                 key: ValueKey(v.prediction.id),
                 view: v,
                 name: names[v.prediction.targetCode] ?? v.prediction.targetCode,
-                verifiable: !v.verified && repo.isVerifiable(v.prediction.dueDate),
+                verifiable: !v.verified && repo.isCheckpointDue(v.primary, v.plan.primaryDate),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => PredictionDetailPage(predictionId: v.prediction.id))),
               );
@@ -124,3 +124,4 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
     );
   }
 }
+

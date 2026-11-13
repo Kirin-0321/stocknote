@@ -1,4 +1,5 @@
 import '../../data/repo/prediction_repository.dart';
+import 'checkpoints.dart';
 import 'verifier.dart';
 
 /// 一组判断的统计。
@@ -39,6 +40,9 @@ class PredictionStats {
   final byTarget = <String, StatBucket>{};
   final byHorizon = <String, StatBucket>{};
   final byConfidence = <int, StatBucket>{};
+
+  /// 各验证时点的准确率（不区分主时点）
+  final byCheckpoint = <Checkpoint, StatBucket>{};
   int pending = 0;
   int modified = 0;
 
@@ -49,6 +53,10 @@ class PredictionStats {
       final p = v.prediction;
       if (p.modifiedBeforeDue) s.modified++;
       if (excludeModified && p.modifiedBeforeDue) continue;
+      for (final e in v.results.entries) {
+        final st = VerifyStatus.fromCode(e.value.status);
+        if (st != null) s.byCheckpoint.putIfAbsent(e.key, StatBucket.new).add(st);
+      }
       final status = v.status;
       if (status == null) {
         s.pending++;
@@ -65,3 +73,4 @@ class PredictionStats {
 }
 
 const directionLabels = {'up': '看多', 'down': '看空', 'range': '震荡'};
+

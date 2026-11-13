@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stocknote/core/calendar/trading_calendar.dart';
 import 'package:stocknote/core/time/trading_session.dart';
 import 'package:stocknote/data/market/models.dart';
+import 'package:stocknote/domain/verify/checkpoints.dart';
 import 'package:stocknote/domain/verify/threshold.dart';
 import 'package:stocknote/domain/verify/verifier.dart';
 
@@ -11,32 +12,59 @@ KBar bar(String d, double c, {double? h, double? l, double? o}) =>
 void main() {
   DateTime d(int m, int day) => DateTime.utc(2026, m, day);
 
-  group('判定窗口', () {
+  group('验证时点规划', () {
     final cal = TradingCalendar(); // 工作日规则；11/13 周五
 
-    test('盘中记录：今日 = 当天，T+1 = 下一交易日，一周 = T+5', () {
-      final w0 = PredictionWindow.of(cal, d(11, 13), TradingSession.morning, 'close');
-      expect(w0.dueDate, d(11, 13));
-      expect(PredictionWindow.of(cal, d(11, 13), TradingSession.morning, 't1').dueDate, d(11, 16));
-      expect(PredictionWindow.of(cal, d(11, 13), TradingSession.morning, 't5').dueDate, d(11, 20));
-      expect(w0.windowStart, d(11, 13));
-      expect(w0.baseFromPrevClose, isTrue);
+    test('盘中记录：当日收盘 / 次日开盘 / 次日收盘 / T+3 / T+5，主时点随周期', () {
+      final p = CheckpointPlan.of(cal, d(11, 13), TradingSession.morning, 't1');
+      expect(p.points, {
+        Checkpoint.c0: d(11, 13),
+        Checkpoint.o1: d(11, 16),
+        Checkpoint.c1: d(11, 16),
+        Checkpoint.c3: d(11, 18),
+        Checkpoint.c5: d(11, 20),
+      });
+      expect(p.primary, Checkpoint.c1);
+      expect(p.windowStart, d(11, 13));
+      expect(p.baseIsRefClose, isFalse);
+      expect(CheckpointPlan.of(cal, d(11, 13), TradingSession.morning, 'close').primary, Checkpoint.c0);
+      expect(CheckpointPlan.of(cal, d(11, 13), TradingSession.morning, 't5').primary, Checkpoint.c5);
     });
 
-    test('盘后记录：今日顺延到下一交易日，窗口从下一交易日开始', () {
-      final w = PredictionWindow.of(cal, d(11, 13), TradingSession.afterMarket, 'close');
-      expect(w.dueDate, d(11, 16));
-      expect(w.windowStart, d(11, 16));
-      expect(w.baseFromPrevClose, isFalse);
-      expect(PredictionWindow.of(cal, d(11, 13), TradingSession.afterMarket, 't1').dueDate, d(11, 16));
+    test('中期判断额外加 T+20', () {
+      final p = CheckpointPlan.of(cal, d(11, 13), TradingSession.morning, 'mid');
+      expect(p.primary, Checkpoint.c20);
+      expect(p.points[Checkpoint.c20], d(12, 11));
     });
 
-    test('周末记录：所属交易日即第一个交易日', () {
+    test('盘后记录：没有当日收盘，"今日"即次日收盘，基准为当日收盘', () {
+      final p = CheckpointPlan.of(cal, d(11, 13), TradingSession.afterMarket, 'close');
+      expect(p.points.containsKey(Checkpoint.c0), isFalse);
+      expect(p.points[Checkpoint.o1], d(11, 16));
+      expect(p.primary, Checkpoint.c1);
+      expect(p.windowStart, d(11, 16));
+      expect(p.baseIsRefClose, isTrue);
+    });
+
+    test('周末记录：参考日为上一交易日，从下一交易日开盘起验证', () {
       // 周六记录的 tradeDate 已是下周一
-      final w = PredictionWindow.of(cal, d(11, 16), TradingSession.holiday, 't1');
-      expect(w.dueDate, d(11, 16));
-      expect(PredictionWindow.of(cal, d(11, 16), TradingSession.holiday, 't5').dueDate, d(11, 20));
+      final p = CheckpointPlan.of(cal, d(11, 16), TradingSession.holiday, 't1');
+      expect(p.refDay, d(11, 13));
+      expect(p.points[Checkpoint.o1], d(11, 16));
+      expect(p.primaryDate, d(11, 16));
+      expect(p.points[Checkpoint.c5], d(11, 20));
     });
+  });
+
+  test('开盘时点只看开盘价', () {
+    final o = Verifier.verify(
+      VerifyInput(
+          direction: 'up', basePrice: 100, thresholdPct: 1, windowStart: d(11, 13), dueDate: d(11, 16), atOpen: true),
+      [bar('20261113', 100, h: 100.5, l: 99.5), bar('20261116', 99, o: 101.5, h: 103, l: 98)],
+    )!;
+    expect(o.actualClose, 101.5);
+    expect(o.status, VerifyStatus.correct);
+    expect(o.mfe, closeTo(1.5, 1e-9), reason: '当日盘中高点 103 不计入');
   });
 
   group('仅方向', () {
@@ -154,3 +182,4 @@ void main() {
     expect(const ThresholdConfig().resolve(InstrumentType.marketIndex, 't1'), 0.3);
   });
 }
+

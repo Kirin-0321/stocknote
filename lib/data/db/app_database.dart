@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open() => AppDatabase(driftDatabase(name: 'stocknote'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -55,6 +55,13 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(journalEntries, journalEntries.horizon);
             await customStatement(
                 'CREATE INDEX IF NOT EXISTS idx_entry_category ON journal_entries(category, subcategory)');
+          }
+          if (from < 3) {
+            // v3：多时点验证。旧的单时点结果作废，由验证服务按全部时点重新判定
+            await m.addColumn(predictionResults, predictionResults.checkpoint);
+            await customStatement(
+                'UPDATE prediction_results SET deleted_at = ${DateTime.now().millisecondsSinceEpoch} '
+                'WHERE deleted_at IS NULL');
           }
         },
         beforeOpen: (details) async {

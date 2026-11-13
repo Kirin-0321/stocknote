@@ -24,7 +24,7 @@ class _ThresholdPageState extends ConsumerState<ThresholdPage> {
     InstrumentType.etf,
     InstrumentType.stock,
   ];
-  static const _horizons = ['close', 't1', 't5', 'mid'];
+  static const _horizons = ['close', 't1', 't3', 't5', 'mid'];
   static const _steps = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0];
 
   @override
@@ -147,3 +147,4 @@ class _ThresholdPageState extends ConsumerState<ThresholdPage> {
     );
   }
 }
+

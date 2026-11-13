@@ -62,6 +62,16 @@ class JournalService {
     return e;
   }
 
+  /// 为尚未生成判断的"判断"类日记补建判断（如功能上线前记录的条目）。返回补建数量。
+  Future<int> backfillPredictions() async {
+    var n = 0;
+    for (final e in await journal.judgeEntries()) {
+      if (await predictions.forEntry(e.id) != null) continue;
+      if (await predictions.syncFromEntry(e) != null) n++;
+    }
+    return n;
+  }
+
   Future<void> delete(String id) async {
     await journal.delete(id);
     final e = await journal.get(id);

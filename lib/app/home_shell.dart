@@ -61,6 +61,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     // 启动后在后台同步交易日历与代码表（每天一次）
     Future.microtask(() async {
       try {
+        await ref.read(journalServiceProvider).backfillPredictions();
+      } catch (_) {}
+      try {
         await runBaseDataSync(ref);
       } catch (_) {
         // 离线或源不可用：下次启动再试

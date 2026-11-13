@@ -1,8 +1,6 @@
 import 'dart:math' as math;
 
-import '../../core/calendar/trading_calendar.dart';
 import '../../core/time/market_clock.dart';
-import '../../core/time/trading_session.dart';
 import '../../data/market/models.dart';
 
 /// 判定结果状态（spec 3.3.2）。
@@ -42,50 +40,6 @@ const horizonLabels = {
   'mid': '中期',
 };
 
-/// 一条判断的时间窗口：基准日、观察区间起点、到期日。
-class PredictionWindow {
-  const PredictionWindow({
-    required this.dueDate,
-    required this.windowStart,
-    required this.baseFromPrevClose,
-  });
-
-  /// 到期交易日（以该日收盘价判定）
-  final DateTime dueDate;
-
-  /// 观察区间第一个交易日（用于目标价 / 止损触发、MFE / MAE）
-  final DateTime windowStart;
-
-  /// 缺少录入时快照时，基准价取前一交易日收盘（true）还是记录当日收盘（false）
-  final bool baseFromPrevClose;
-
-  /// 计算窗口：
-  /// - 盘前 / 盘中记录：T 为当天，今日 = 当天收盘
-  /// - 盘后记录：基准为当天收盘，"今日"顺延到下一交易日
-  /// - 周末 / 假日记录：所属交易日即第一个交易日，T+1 = 该日
-  static PredictionWindow of(
-      TradingCalendar cal, DateTime tradeDate, TradingSession session, String horizon) {
-    final n = horizonDays(horizon);
-    return switch (session) {
-      TradingSession.afterMarket => PredictionWindow(
-          dueDate: cal.addTradingDays(tradeDate, math.max(n, 1)),
-          windowStart: cal.next(tradeDate),
-          baseFromPrevClose: false,
-        ),
-      TradingSession.holiday => PredictionWindow(
-          dueDate: cal.addTradingDays(tradeDate, math.max(n - 1, 0)),
-          windowStart: tradeDate,
-          baseFromPrevClose: true,
-        ),
-      _ => PredictionWindow(
-          dueDate: cal.addTradingDays(tradeDate, n),
-          windowStart: tradeDate,
-          baseFromPrevClose: true,
-        ),
-    };
-  }
-}
-
 /// 判定输入。
 class VerifyInput {
   const VerifyInput({
@@ -94,6 +48,7 @@ class VerifyInput {
     required this.thresholdPct,
     required this.windowStart,
     required this.dueDate,
+    this.atOpen = false,
     this.targetPrice,
     this.stopPrice,
     this.rangeLow,
@@ -105,7 +60,11 @@ class VerifyInput {
   final double basePrice;
   final double thresholdPct;
   final DateTime windowStart;
+  /// 判定时点所在交易日
   final DateTime dueDate;
+
+  /// 用该日开盘价判定（当日只计入开盘价，不含盘中高低点）
+  final bool atOpen;
   final double? targetPrice;
   final double? stopPrice;
   final double? rangeLow;
@@ -151,6 +110,10 @@ class Verifier {
     final window = bars.where((b) => b.date.compareTo(start) >= 0 && b.date.compareTo(due) <= 0).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
     if (window.isEmpty || window.last.date != due) return null;
+    if (input.atOpen) {
+      final o = window.last.open;
+      window[window.length - 1] = KBar(date: due, open: o, high: o, low: o, close: o);
+    }
 
     final base = input.basePrice;
     final close = window.last.close;
@@ -216,3 +179,5 @@ class Verifier {
         _ => 'range',
       };
 }
+
+

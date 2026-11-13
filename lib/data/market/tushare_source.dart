@@ -148,9 +148,19 @@ class TushareSource extends MarketSource {
       };
       if (api != null) (byApi[api] ??= []).add(c);
     }
-    if (byApi.isEmpty) throw const UnsupportedRequest('Tushare 不支持这些代码的实时报价');
+    final sectors = codes.where(Codes.isEmSector).toList();
+    if (byApi.isEmpty && sectors.isEmpty) {
+      throw const UnsupportedRequest('Tushare 不支持这些代码的实时报价');
+    }
     final out = <Quote>[];
     Object? lastError;
+    for (final s in sectors) {
+      try {
+        out.add(await _sectorQuote(s));
+      } catch (err) {
+        lastError = err;
+      }
+    }
     for (final e in byApi.entries) {
       try {
         final rows = await call(e.key, params: {'ts_code': e.value.join(',')});
@@ -161,6 +171,61 @@ class TushareSource extends MarketSource {
     }
     if (out.isEmpty && lastError != null) throw lastError;
     return out;
+  }
+
+  // ───────────── 板块实时估算 ─────────────
+
+  /// 板块 → (名称, 昨收, 成分股)，按日缓存。
+  final Map<String, ({String date, String name, double preClose, List<String> members})> _sectorMeta = {};
+
+  /// 东财板块实时行情估算：昨收取 dc_daily，涨跌幅取成分股实时涨跌的等权平均（标记为估算）。
+  Future<Quote> _sectorQuote(String code) async {
+    final today = TradeDate.format(MarketClock.marketDate(_now()));
+    var meta = _sectorMeta[code];
+    if (meta == null || meta.date != today) {
+      final days = await _recentOpenDays();
+      final todayStr = today;
+      final prevDays = days.where((d) => d != todayStr).take(5).toList();
+      final daily = await call('dc_daily',
+          params: {'ts_code': _toTs(code), 'start_date': prevDays.last, 'end_date': prevDays.first},
+          fields: 'trade_date,close');
+      daily.sort((a, b) => (b['trade_date'] as String).compareTo(a['trade_date'] as String));
+      final preClose = toNum(daily.firstOrNull?['close']);
+      final members = await _latest('dc_member', {'ts_code': _toTs(code)}, 'con_code');
+      final info = await _latest('dc_index', {'ts_code': _toTs(code)}, 'name');
+      if (preClose == null || members.isEmpty) throw SourceError(id, '$code 无板块数据');
+      meta = (
+        date: today,
+        name: (info.firstOrNull?['name'] as String?) ?? code,
+        preClose: preClose,
+        members: members.map((m) => m['con_code'] as String).toList(),
+      );
+      _sectorMeta[code] = meta;
+    }
+    final pcts = <double>[];
+    var amount = 0.0;
+    for (var i = 0; i < meta.members.length; i += 300) {
+      final rows = await call('rt_k',
+          params: {'ts_code': meta.members.sublist(i, (i + 300).clamp(0, meta.members.length)).join(',')},
+          fields: 'ts_code,pre_close,close,amount');
+      for (final r in rows) {
+        final pre = toNum(r['pre_close']);
+        final close = toNum(r['close']);
+        if (pre == null || close == null || pre <= 0 || close <= 0) continue;
+        pcts.add((close - pre) / pre * 100);
+        amount += toNum(r['amount']) ?? 0;
+      }
+    }
+    if (pcts.isEmpty) throw SourceError(id, '$code 成分股无行情');
+    final avg = pcts.reduce((a, b) => a + b) / pcts.length;
+    return Quote(
+      code: code,
+      name: meta.name,
+      price: meta.preClose * (1 + avg / 100),
+      preClose: meta.preClose,
+      amount: amount,
+      approx: true,
+    );
   }
 
   // ───────────── 全市场实时（宽度 / 涨跌停） ─────────────

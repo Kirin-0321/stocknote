@@ -175,6 +175,9 @@ class Predictions extends Table with SyncColumns {
 class PredictionResults extends Table with SyncColumns {
   TextColumn get predictionId => text()();
 
+  /// 验证时点：c0 当日收盘 | o1 次日开盘 | c1 次日收盘 | c3 | c5 | c20（v3 新增）
+  TextColumn get checkpoint => text().withDefault(const Constant('c1'))();
+
   /// correct | wrong | partial | pending_manual
   TextColumn get status => text()();
   RealColumn get actualClose => real().nullable()();

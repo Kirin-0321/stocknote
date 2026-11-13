@@ -75,7 +75,7 @@ class PredictionDetailPage extends ConsumerWidget {
             title: '原始记录 · ${formatDateTime(v.entry!.ts)}',
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               HighlightedText(v.entry!.content),
-              if (v.entry!.snapshotId != null) SnapshotLine(snapshotId: v.entry!.snapshotId!),
+              SnapshotLine(entry: v.entry!),
             ]),
           ),
         _ResultCard(view: v),
@@ -111,22 +111,29 @@ class _ResultCard extends ConsumerWidget {
     final repo = ref.read(predictionRepositoryProvider);
     final mc = marketColors(context);
 
+    final primary = view.primary;
+    final primaryDate = view.plan.primaryDate;
     return BoardCard(
-      title: '判定结果',
+      title: '主结论 · ${primary.label}',
       trailing: r?.isManual ?? false ? Pill('手动判定', color: theme.colorScheme.tertiary) : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(statusIcon(s), color: statusColor(context, s), size: 28),
           const SizedBox(width: 8),
-          Text(
-            s?.label ?? (repo.isVerifiable(p.dueDate) ? '已到期，等待验证' : '进行中，${formatDue(p.dueDate)}收盘后判定'),
-            style: theme.textTheme.titleMedium?.copyWith(color: statusColor(context, s)),
+          Expanded(
+            child: Text(
+              s?.label ??
+                  (repo.isCheckpointDue(primary, primaryDate)
+                      ? '已到时点，等待行情数据'
+                      : '进行中，${formatDue(TradeDate.format(primaryDate))}${primary.atOpen ? '开盘' : '收盘'}后判定'),
+              style: theme.textTheme.titleMedium?.copyWith(color: statusColor(context, s)),
+            ),
           ),
         ]),
         const SizedBox(height: 12),
         Wrap(spacing: 24, runSpacing: 8, children: [
           Metric(label: '基准价', value: formatPrice(p.basePrice)),
-          Metric(label: '到期收盘', value: formatPrice(r?.actualClose)),
+          Metric(label: primary.atOpen ? '时点开盘' : '时点收盘', value: formatPrice(r?.actualClose)),
           Metric(
             label: '涨跌幅',
             value: formatPct(r?.changePct),
@@ -144,27 +151,76 @@ class _ResultCard extends ConsumerWidget {
                 style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
           ),
         const Divider(height: 24),
-        Text('手动判定（覆盖自动结果）', style: theme.textTheme.labelLarge),
+        Text('各时点验证', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        _CheckpointTable(view: view),
+        const Divider(height: 24),
+        Text('手动判定主结论（覆盖自动结果）', style: theme.textTheme.labelLarge),
         const SizedBox(height: 6),
         Wrap(spacing: 6, children: [
           for (final st in [VerifyStatus.correct, VerifyStatus.partial, VerifyStatus.wrong])
             ChoiceChip(
               label: Text(st.label),
               selected: (r?.isManual ?? false) && s == st,
-              onSelected: (_) => repo.setManualStatus(p.id, st),
+              onSelected: (_) => repo.setManualStatus(p.id, primary, st),
             ),
           if (r?.isManual ?? false)
             ActionChip(
               avatar: const Icon(Icons.restart_alt, size: 16),
               label: const Text('恢复自动判定'),
               onPressed: () async {
-                await repo.resetResult(p.id);
+                await repo.resetResult(p.id, primary);
                 await ref.read(verificationServiceProvider).runDue();
               },
             ),
         ]),
       ]),
     );
+  }
+}
+
+/// 各时点结果表：时点 / 日期 / 价格 / 涨跌幅 / 结果，主时点加粗。
+class _CheckpointTable extends StatelessWidget {
+  const _CheckpointTable({required this.view});
+  final PredictionView view;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mc = marketColors(context);
+    final small = theme.textTheme.bodySmall;
+    return Column(children: [
+      for (final MapEntry(key: cp, value: date) in view.plan.points.entries)
+        () {
+          final r = view.results[cp];
+          final s = view.statusAt(cp);
+          final isPrimary = cp == view.primary;
+          final style = isPrimary ? small?.copyWith(fontWeight: FontWeight.w700) : small;
+          return Padding(
+            key: Key('cp-${cp.code}'),
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              SizedBox(width: 72, child: Text(cp.label + (isPrimary ? ' ★' : ''), style: style)),
+              SizedBox(width: 48, child: Text(mmdd(TradeDate.format(date)), style: small)),
+              Expanded(child: Text(formatPrice(r?.actualClose), style: small)),
+              SizedBox(
+                width: 64,
+                child: Text(formatPct(r?.changePct),
+                    textAlign: TextAlign.right,
+                    style: small?.copyWith(color: r?.changePct == null ? null : mc.of(r!.changePct!))),
+              ),
+              const SizedBox(width: 10),
+              Icon(statusIcon(s), size: 16, color: statusColor(context, s)),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 52,
+                child: Text(s?.label ?? '待定',
+                    style: small?.copyWith(color: statusColor(context, s)), overflow: TextOverflow.ellipsis),
+              ),
+            ]),
+          );
+        }(),
+    ]);
   }
 }
 
@@ -327,4 +383,5 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
     );
   }
 }
+
 

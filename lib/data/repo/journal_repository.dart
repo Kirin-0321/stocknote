@@ -135,6 +135,11 @@ class JournalRepository {
         .write(JournalEntriesCompanion(snapshotId: Value(snapshotId)));
   }
 
+  /// 全部未删除的"判断"类条目。
+  Future<List<JournalEntry>> judgeEntries() => (_db.select(_db.journalEntries)
+        ..where((e) => e.category.equals('judge') & e.deletedAt.isNull()))
+      .get();
+
   /// 撤销软删除。
   Future<void> restore(String id) async {
     await (_db.update(_db.journalEntries)..where((e) => e.id.equals(id))).write(

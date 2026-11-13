@@ -11,8 +11,12 @@ import 'package:stocknote/data/market/sources.dart';
 import 'package:stocknote/data/repo/journal_repository.dart';
 import 'package:stocknote/data/repo/prediction_repository.dart';
 import 'package:stocknote/data/repo/threshold_repository.dart';
+import 'package:stocknote/data/market/snapshot_service.dart';
+import 'package:stocknote/data/repo/market_snapshot_repository.dart';
+import 'package:stocknote/data/service/journal_service.dart';
 import 'package:stocknote/data/service/verification_service.dart';
 import 'package:stocknote/domain/journal/entry_class.dart';
+import 'package:stocknote/domain/verify/checkpoints.dart';
 import 'package:stocknote/domain/verify/threshold.dart';
 import 'package:stocknote/domain/verify/verifier.dart';
 
@@ -110,44 +114,74 @@ void main() {
         market: MarketService(MarketRouter([source], now: () => clock)),
         calendar: cal,
         thresholds: () async => const ThresholdConfig(),
+        now: () => clock,
       );
     });
 
-    test('未到期不验证；到期日 15:30 后按日 K 判定；手动判定不被覆盖', () async {
-      final e = await judge();
+    test('多时点依次判定：当日收盘 → 次日开盘 / 收盘；主时点为 T+1 收盘；手动判定不被覆盖', () async {
+      final e = await judge(); // 11/13 周五 10:05，看多 T+1
       final p = (await preds.syncFromEntry(e))!;
       source.klines['600519.SH'] = [
         bar('20261112', 1400),
         bar('20261113', 1410, h: 1415, l: 1395),
-        bar('20261116', 1430, h: 1440, l: 1405),
+        KBar(date: '20261116', open: 1420, high: 1440, low: 1405, close: 1430),
       ];
 
-      expect((await svc.runDue()).verified, 0);
+      expect((await svc.runDue()).verified, 0, reason: '盘中没有到期时点');
 
-      clock = MarketClock.fromMarket(2026, 11, 16, 15, 0);
-      expect((await svc.runDue()).verified, 0, reason: '15:30 前不判定');
+      clock = MarketClock.fromMarket(2026, 11, 13, 16, 0);
+      expect((await svc.runDue()).verified, 1, reason: '当日收盘');
+      var v = (await preds.view(p.id))!;
+      // 无快照：盘中记录基准取前一交易日收盘 1400；当日收盘 1410 → +0.71%，看多但未达个股阈值 1%
+      expect(v.prediction.basePrice, 1400);
+      expect(v.statusAt(Checkpoint.c0), VerifyStatus.partial);
+      expect(v.status, isNull, reason: '主时点（次日收盘）尚未判定');
+
+      clock = MarketClock.fromMarket(2026, 11, 16, 9, 20);
+      expect((await svc.runDue()).verified, 0, reason: '开盘前');
 
       clock = MarketClock.fromMarket(2026, 11, 16, 16, 0);
-      final r = await svc.runDue();
-      expect(r.verified, 1);
-      final v = (await preds.view(p.id))!;
-      // 无快照：盘中记录基准取前一交易日收盘 1400；到期收盘 1430 → +2.14% ≥ 个股阈值 1%
-      expect(v.prediction.basePrice, 1400);
+      expect((await svc.runDue()).verified, 2, reason: '次日开盘 + 次日收盘');
+      v = (await preds.view(p.id))!;
+      expect(v.results[Checkpoint.o1]!.actualClose, 1420);
+      expect(v.statusAt(Checkpoint.o1), VerifyStatus.correct); // +1.43%
       expect(v.status, VerifyStatus.correct);
       expect(v.result!.changePct, closeTo(2.142857, 1e-4));
+      expect(v.allDone, isFalse, reason: 'T+3 / T+5 未到');
 
-      await preds.setManualStatus(p.id, VerifyStatus.wrong);
+      await preds.setManualStatus(p.id, Checkpoint.c1, VerifyStatus.wrong);
       await preds.clearAutoResults();
-      expect((await preds.view(p.id))!.status, VerifyStatus.wrong);
+      v = (await preds.view(p.id))!;
+      expect(v.status, VerifyStatus.wrong);
+      expect(v.results.containsKey(Checkpoint.c0), isFalse);
     });
 
-    test('到期日 K 线尚未更新时稍后重试', () async {
+    test('时点日 K 线尚未更新时稍后重试', () async {
       final e = await judge();
       await preds.syncFromEntry(e);
       source.klines['600519.SH'] = [bar('20261112', 1400), bar('20261113', 1410)];
-      clock = MarketClock.fromMarket(2026, 11, 16, 16, 0);
+      clock = MarketClock.fromMarket(2026, 11, 17, 10, 0);
       final r = await svc.runDue();
-      expect((r.verified, r.waiting), (0, 1));
+      expect((r.verified, r.waiting), (1, 2), reason: '当日收盘可判；次日开盘 / 收盘缺 11/16 K 线');
+    });
+
+    test('当天的时点用实时行情补 K 线：开盘后判次日开盘，收盘后判收盘', () async {
+      final e = await judge();
+      final p = (await preds.syncFromEntry(e))!;
+      source.klines['600519.SH'] = [bar('20261112', 1400), bar('20261113', 1410)];
+      source.quoteOverride = (code) =>
+          const Quote(code: '600519.SH', name: '贵州茅台', price: 1390, preClose: 1410, open: 1425, high: 1426, low: 1388);
+      clock = MarketClock.fromMarket(2026, 11, 16, 10, 0);
+      await svc.runDue();
+      var v = (await preds.view(p.id))!;
+      expect(v.results[Checkpoint.o1]!.actualClose, 1425);
+      expect(v.results.containsKey(Checkpoint.c1), isFalse);
+
+      clock = MarketClock.fromMarket(2026, 11, 16, 15, 10);
+      await svc.runDue();
+      v = (await preds.view(p.id))!;
+      expect(v.result!.actualClose, 1390);
+      expect(v.status, VerifyStatus.wrong);
     });
 
     test('复盘笔记与视图', () async {
@@ -161,6 +195,24 @@ void main() {
       expect(v.entry!.id, e.id);
       expect((await preds.all()), hasLength(1));
     });
+  });
+
+  test('补建：功能上线前的判断类日记补生成判断，已有的不重复', () async {
+    final e1 = await judge();
+    final e2 = await judge(codes: const [], sub: 'market');
+    await journal.create(content: 'x', classification: const EntryClass(category: 'observe'));
+    final svc = JournalService(
+      journal: journal,
+      predictions: preds,
+      snapshots: SnapshotService(
+          market: MarketService(MarketRouter(const [])),
+          repo: MarketSnapshotRepository(db),
+          latestOverview: () => null),
+    );
+    expect(await svc.backfillPredictions(), 2);
+    expect(await svc.backfillPredictions(), 0);
+    expect(await preds.forEntry(e1.id), isNotNull);
+    expect((await preds.forEntry(e2.id))!.targetCode, '000001.SH');
   });
 
   test('阈值配置持久化', () async {
@@ -178,3 +230,5 @@ void main() {
     expect(cfg.resolve(InstrumentType.marketIndex, 't1'), 0.3, reason: '未保存的类型保留默认');
   });
 }
+
+

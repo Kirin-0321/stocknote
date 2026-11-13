@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../data/repo/prediction_repository.dart';
 import '../../../domain/journal/vocab.dart';
+import '../../../domain/verify/checkpoints.dart';
 import '../../../domain/verify/stats.dart';
 import '../../../domain/verify/verifier.dart';
 import 'prediction_card.dart';
@@ -68,6 +69,10 @@ class _StatsViewState extends State<StatsView> {
           ]),
         ),
       ),
+      _Breakdown(title: '按验证时点', keepOrder: true, buckets: {
+        for (final cp in Checkpoint.values)
+          cp.label: ?s.byCheckpoint[cp],
+      }),
       _Breakdown(title: '按方向', buckets: {
         for (final e in s.byDirection.entries) directionLabels[e.key] ?? e.key: e.value,
       }),
@@ -93,15 +98,16 @@ class _StatsViewState extends State<StatsView> {
 }
 
 class _Breakdown extends StatelessWidget {
-  const _Breakdown({required this.title, required this.buckets});
+  const _Breakdown({required this.title, required this.buckets, this.keepOrder = false});
   final String title;
+  final bool keepOrder;
   final Map<String, StatBucket> buckets;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final rows = buckets.entries.where((e) => e.value.decided > 0).toList()
-      ..sort((a, b) => b.value.decided.compareTo(a.value.decided));
+    final rows = buckets.entries.where((e) => e.value.decided > 0).toList();
+    if (!keepOrder) rows.sort((a, b) => b.value.decided.compareTo(a.value.decided));
     if (rows.isEmpty) return const SizedBox.shrink();
     return Card(
       elevation: 0,
@@ -116,7 +122,7 @@ class _Breakdown extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(children: [
-                SizedBox(width: 64, child: Text(e.key, style: theme.textTheme.bodySmall)),
+                SizedBox(width: 72, child: Text(e.key, style: theme.textTheme.bodySmall)),
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(3),
@@ -143,4 +149,6 @@ class _Breakdown extends StatelessWidget {
     );
   }
 }
+
+
 
