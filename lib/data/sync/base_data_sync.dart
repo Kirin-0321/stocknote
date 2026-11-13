@@ -76,9 +76,10 @@ class BaseDataSync {
     }
 
     try {
-      // 东方财富板块（看板排行使用的 BK 代码）
+      // 无 Tushare 时，板块列表改由东方财富提供（Tushare 的东财板块已包含在代码表中）
+      final ts = router.sources.where((s) => s.id == SourceId.tushare).firstOrNull;
       final em = router.sources.where((s) => s.id == SourceId.eastmoney).firstOrNull;
-      if (em != null) {
+      if (em != null && (ts == null || !ts.isAvailable)) {
         final sectors = await em.instruments();
         await instrumentRepo.upsertAll(sectors);
         count += sectors.length;

@@ -16,3 +16,7 @@ android/key.properties
 # Misc
 .DS_Store
 *.log
+
+# Secrets
+.env
+

@@ -10,6 +10,7 @@ import '../../domain/journal/entry_parser.dart';
 import 'journal_page.dart';
 import 'revision_history_page.dart';
 import 'widgets/attribute_chips.dart';
+import 'widgets/instrument_suggest.dart';
 
 Future<void> showEditEntrySheet(BuildContext context, JournalEntry entry) {
   return showModalBottomSheet(
@@ -32,12 +33,15 @@ class EditEntrySheet extends ConsumerStatefulWidget {
 
 class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
   late final _controller = TextEditingController(text: widget.entry.content);
+  late final _suggest =
+      InstrumentSuggestController(_controller, ref.read(instrumentRepositoryProvider));
   late var _cls = widget.entry.classification;
   late var _ts = widget.entry.ts;
   var _saving = false;
 
   @override
   void dispose() {
+    _suggest.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -66,8 +70,7 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
     final parsed = EntryParser.parse(_controller.text);
     if (parsed.isEmpty) return;
     setState(() => _saving = true);
-    final codes =
-        await ref.read(instrumentRepositoryProvider).resolveRefs(parsed.instrumentRefs);
+    final codes = await _suggest.resolve(parsed.instrumentRefs);
     await ref.read(journalRepositoryProvider).update(
           widget.entry.id,
           content: parsed.content,
@@ -109,6 +112,7 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
               maxLines: 10,
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
+            InstrumentSuggestPanel(controller: _suggest, maxHeight: 200),
             CategoryForm(value: _cls, onChanged: (v) => setState(() => _cls = v)),
             const SizedBox(height: 16),
             Row(children: [
@@ -140,4 +144,5 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
     );
   }
 }
+
 

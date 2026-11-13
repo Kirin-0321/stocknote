@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/calendar/trading_calendar.dart';
@@ -47,21 +47,21 @@ final tradingCalendarProvider =
 final secretStoreProvider = Provider<SecretStore>((ref) => const SecureSecretStore());
 final settingsStoreProvider = Provider((ref) => SettingsStore(ref.watch(databaseProvider)));
 
-/// 本地开发用：`--dart-define=TUSHARE_TOKEN=...`，仅 debug 构建且用户未设置时生效，不会持久化。
-const _devTushareToken = String.fromEnvironment('TUSHARE_TOKEN');
+/// 构建时从项目 .env 注入（`--dart-define-from-file=.env`）。App 内未单独设置 token 时默认使用。
+const _envTushareToken = String.fromEnvironment('TUSHARE_TOKEN');
 
 @immutable
 class AppConfig {
   const AppConfig({
     this.tushareToken,
-    this.tokenFromDevDefine = false,
+    this.tokenFromEnv = false,
     this.priority = const {},
     this.refreshSeconds = 5,
     this.watchlist = const [],
   });
 
   final String? tushareToken;
-  final bool tokenFromDevDefine;
+  final bool tokenFromEnv;
   final Map<Capability, List<SourceId>> priority;
   final int refreshSeconds;
 
@@ -71,14 +71,14 @@ class AppConfig {
   AppConfig copyWith({
     String? tushareToken,
     bool clearToken = false,
-    bool? tokenFromDevDefine,
+    bool? tokenFromEnv,
     Map<Capability, List<SourceId>>? priority,
     int? refreshSeconds,
     List<String>? watchlist,
   }) =>
       AppConfig(
         tushareToken: clearToken ? null : (tushareToken ?? this.tushareToken),
-        tokenFromDevDefine: tokenFromDevDefine ?? this.tokenFromDevDefine,
+        tokenFromEnv: tokenFromEnv ?? this.tokenFromEnv,
         priority: priority ?? this.priority,
         refreshSeconds: refreshSeconds ?? this.refreshSeconds,
         watchlist: watchlist ?? this.watchlist,
@@ -87,13 +87,13 @@ class AppConfig {
   static Future<AppConfig> load(SettingsStore settings, SecretStore secrets) async {
     var token = await secrets.read(SecretKeys.tushareToken);
     var fromDev = false;
-    if ((token == null || token.isEmpty) && kDebugMode && _devTushareToken.isNotEmpty) {
-      token = _devTushareToken;
+    if ((token == null || token.isEmpty) && _envTushareToken.isNotEmpty) {
+      token = _envTushareToken;
       fromDev = true;
     }
     return AppConfig(
       tushareToken: token,
-      tokenFromDevDefine: fromDev,
+      tokenFromEnv: fromDev,
       priority: await settings.sourcePriority(),
       refreshSeconds: await settings.refreshSeconds(),
       watchlist: await settings.watchlist(),
@@ -112,8 +112,8 @@ class AppConfigNotifier extends Notifier<AppConfig> {
     final t = token?.trim();
     await ref.read(secretStoreProvider).write(SecretKeys.tushareToken, t);
     state = (t == null || t.isEmpty)
-        ? state.copyWith(clearToken: true, tokenFromDevDefine: false)
-        : state.copyWith(tushareToken: t, tokenFromDevDefine: false);
+        ? state.copyWith(clearToken: true, tokenFromEnv: false)
+        : state.copyWith(tushareToken: t, tokenFromEnv: false);
   }
 
   Future<void> setPriority(Capability c, List<SourceId> order) async {
@@ -211,3 +211,4 @@ Future<SyncResult> runBaseDataSync(WidgetRef ref, {bool force = false}) async {
   if (calendar != null) ref.read(tradingCalendarProvider.notifier).set(calendar);
   return result;
 }
+

@@ -63,8 +63,23 @@ class MarketService {
 
   final MarketRouter router;
 
-  Future<List<Quote>> quotes(List<String> codes) =>
-      router.call(Capability.quotes, (s) => s.quotes(codes));
+  /// 报价。首选源未覆盖的代码（如 Tushare 不支持板块）再交给下一个源补齐。
+  Future<List<Quote>> quotes(List<String> codes) async {
+    final first = await router.call(Capability.quotes, (s) => s.quotes(codes));
+    final got = {for (final q in first) q.code};
+    final missing = codes.where((c) => !got.contains(c)).toList();
+    if (missing.isEmpty || missing.length == codes.length) return first;
+    try {
+      final rest = await router.call(Capability.quotes, (s) async {
+        final r = await s.quotes(missing);
+        if (r.isEmpty) throw const UnsupportedRequest('无数据');
+        return r;
+      });
+      return [...first, ...rest];
+    } catch (_) {
+      return first;
+    }
+  }
 
   Future<Intraday> intraday(String code) =>
       router.call(Capability.intraday, (s) => s.intraday(code));

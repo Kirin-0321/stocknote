@@ -9,7 +9,7 @@ class EntryParser {
 
   static final tagPattern = RegExp(r'[#＃]([^\s#＃$￥,，。;；!！?？、]+)');
   static final instrumentPattern =
-      RegExp(r'[$￥]([0-9]{6}(?:\.(?:[Ss][Hh]|[Ss][Zz]|[Bb][Jj]))?|[一-龥A-Za-z][一-龥A-Za-z0-9]*)');
+      RegExp(r'[$￥]([0-9]{6}(?:\.(?:[Ss][Hh]|[Ss][Zz]|[Bb][Jj]))?|[一-龥A-Za-z*][^\s#＃$￥,，。;；!！?？、]*)');
 
   /// 高亮用：匹配任一种 token。
   static final tokenPattern = RegExp('${tagPattern.pattern}|${instrumentPattern.pattern}');
@@ -45,3 +45,4 @@ class ParsedEntry {
 
   bool get isEmpty => content.isEmpty;
 }
+

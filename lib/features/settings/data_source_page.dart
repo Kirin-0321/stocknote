@@ -57,7 +57,7 @@ class _DataSourcePageState extends ConsumerState<DataSourcePage> {
   Future<void> _editToken() async {
     final config = ref.read(appConfigProvider);
     final controller = TextEditingController(
-        text: config.tokenFromDevDefine ? '' : (config.tushareToken ?? ''));
+        text: config.tokenFromEnv ? '' : (config.tushareToken ?? ''));
     String? testResult;
     final saved = await showDialog<String>(
       context: context,
@@ -121,8 +121,8 @@ class _DataSourcePageState extends ConsumerState<DataSourcePage> {
           title: const Text('Tushare Pro token'),
           subtitle: Text(!hasToken
               ? '未设置（代码表、交易日历、日 K 将降级到免费源）'
-              : config.tokenFromDevDefine
-                  ? '使用开发构建内置 token（仅 debug）'
+              : config.tokenFromEnv
+                  ? '使用项目 .env 中的 token（默认）'
                   : '已设置'),
           trailing: const Icon(Icons.edit_outlined),
           onTap: _editToken,
@@ -253,4 +253,5 @@ class _HealthTile extends StatelessWidget {
     );
   }
 }
+
 

@@ -11,6 +11,7 @@ import '../../../domain/journal/entry_parser.dart';
 import '../../../domain/journal/vocab.dart';
 import '../journal_providers.dart';
 import 'attribute_chips.dart';
+import 'instrument_suggest.dart';
 
 /// 日记页底部常驻的快捷输入栏（spec 3.2.2）。
 ///
@@ -29,6 +30,8 @@ class Composer extends ConsumerStatefulWidget {
 class _ComposerState extends ConsumerState<Composer> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
+  late final _suggest =
+      InstrumentSuggestController(_controller, ref.read(instrumentRepositoryProvider));
   var _cls = EntryClass.empty;
   var _expanded = false;
   var _saving = false;
@@ -39,22 +42,29 @@ class _ComposerState extends ConsumerState<Composer> {
     _focus.addListener(() {
       if (_focus.hasFocus && !_expanded) setState(() => _expanded = true);
     });
+    _suggest.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
+    _suggest.dispose();
     _controller.dispose();
     _focus.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
+    // 联想列表打开时，回车优先选中第一项
+    if (_suggest.active && _suggest.results.isNotEmpty) {
+      _suggest.choose(_suggest.results.first);
+      _focus.requestFocus();
+      return;
+    }
     final parsed = EntryParser.parse(_controller.text);
     if (parsed.isEmpty || _saving) return;
     setState(() => _saving = true);
     try {
-      final codes =
-          await ref.read(instrumentRepositoryProvider).resolveRefs(parsed.instrumentRefs);
+      final codes = await _suggest.resolve(parsed.instrumentRefs);
       final repo = ref.read(journalRepositoryProvider);
       final entry = await repo.create(
         content: parsed.content,
@@ -63,6 +73,7 @@ class _ComposerState extends ConsumerState<Composer> {
         instrumentCodes: codes,
       );
       _controller.clear();
+      _suggest.reset();
       // 连续记录时保留一级分类，清空二级与情绪
       setState(() => _cls = EntryClass.empty.withCategory(_cls.categoryEnum));
       widget.onSaved?.call();
@@ -106,29 +117,38 @@ class _ComposerState extends ConsumerState<Composer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_expanded) ...[
-              const SizedBox(height: 8),
-              CategoryPicker(value: _cls, onChanged: (v) => setState(() => _cls = v)),
-              if (phrases.isNotEmpty)
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    children: [
-                      for (final p in phrases)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: ActionChip(
-                            label: Text(p.phrase),
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => _insertPhrase(p.phrase),
-                          ),
+            // 输入 $ 时显示标的联想，否则显示一排：分类按钮 + 常用短语
+            if (_suggest.active)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: InstrumentSuggestPanel(controller: _suggest),
+              )
+            else if (_expanded)
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                  children: [
+                    CategoryButton(value: _cls, onChanged: (v) => setState(() => _cls = v)),
+                    Container(
+                      width: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      color: theme.dividerColor,
+                    ),
+                    for (final p in phrases)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ActionChip(
+                          label: Text(p.phrase),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          onPressed: () => _insertPhrase(p.phrase),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-            ],
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
               child: Row(

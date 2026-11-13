@@ -1,8 +1,23 @@
 import 'package:drift/drift.dart';
+import 'package:lpinyin/lpinyin.dart';
 
 import '../db/app_database.dart';
 import '../market/code_util.dart';
 import '../market/models.dart';
+
+/// 名称拼音首字母（中文取首字母，字母数字保留），如 沪深300ETF → HS300ETF。
+String initials(String name) {
+  final buf = StringBuffer();
+  for (final ch in name.trim().split('')) {
+    if (RegExp(r'[一-龥]').hasMatch(ch)) {
+      final p = PinyinHelper.getShortPinyin(ch);
+      if (p.isNotEmpty) buf.write(p[0]);
+    } else if (RegExp(r'[A-Za-z0-9]').hasMatch(ch)) {
+      buf.write(ch);
+    }
+  }
+  return buf.toString().toUpperCase();
+}
 
 /// 代码表：标的搜索与 `$名称` 解析。
 class InstrumentRepository {
@@ -24,7 +39,7 @@ class InstrumentRepository {
               name: i.name,
               type: i.type.code,
               exchange: Value(i.exchange),
-              pinyin: Value(i.pinyin?.toUpperCase()),
+              pinyin: Value((i.pinyin ?? initials(i.name)).toUpperCase()),
               listDate: Value(i.listDate),
             ),
         ]);
@@ -49,7 +64,7 @@ class InstrumentRepository {
           ..where((i) =>
               i.code.like('$upper%') |
               i.name.like('%$q%') |
-              i.pinyin.like('$upper%'))
+              i.pinyin.like('%$upper%'))
           ..limit(200))
         .get();
     int score(Instrument i) {

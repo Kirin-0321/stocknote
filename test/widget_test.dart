@@ -7,7 +7,9 @@ import 'package:stocknote/app/app.dart';
 import 'package:stocknote/app/providers.dart';
 import 'package:stocknote/core/time/market_clock.dart';
 import 'package:stocknote/data/db/app_database.dart';
+import 'package:stocknote/data/market/models.dart';
 import 'package:stocknote/data/market/sources.dart';
+import 'package:stocknote/data/repo/instrument_repository.dart';
 import 'package:stocknote/features/market/market_page.dart';
 import 'package:stocknote/data/repo/quick_phrase_repository.dart';
 import 'package:stocknote/data/settings/settings_store.dart';
@@ -66,12 +68,23 @@ void main() {
     await tester.tap(input);
     await tester.pumpAndSettle();
 
-    // 选一级"判断" → 二级"大盘""看多"，插入短语，再补充文字后回车
-    await tester.tap(find.byKey(const Key('cat-judge')));
+    // 输入栏只有一排：分类按钮 + 常用短语
+    expect(find.byKey(const Key('category-button')), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, '看多'), findsNothing);
+
+    // 打开分类列表：一级"判断" → 二级"大盘""看多" → 完成
+    await tester.tap(find.byKey(const Key('category-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '判断'));
     await tester.pump();
     await tester.tap(find.widgetWithText(ChoiceChip, '大盘'));
     await tester.pump();
     await tester.tap(find.widgetWithText(ChoiceChip, '看多'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('category-done')));
+    await tester.pumpAndSettle();
+    expect(find.text('判断·大盘 · 看多'), findsOneWidget);
+
     await tester.tap(find.widgetWithText(ActionChip, '放量突破'));
     await tester.pump();
     await tester.enterText(input, '放量突破 #突破');
@@ -147,6 +160,41 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('输入 \$ 弹出标的联想，按首字母匹配并选择', (tester) async {
+    await tester.runAsync(() => InstrumentRepository(db).upsertAll(const [
+          InstrumentInfo(code: '600519.SH', name: '贵州茅台', type: InstrumentType.stock),
+          InstrumentInfo(code: 'BK1036.EM', name: '半导体', type: InstrumentType.sector),
+          InstrumentInfo(code: '512480.SH', name: '半导体ETF', type: InstrumentType.etf),
+        ]));
+    await pumpApp(tester);
+    final input = find.byKey(const Key('composer-input'));
+    await tester.tap(input);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(input, '关注 \$');
+    await tester.pump();
+    expect(find.textContaining('输入代码 / 名称 / 首字母'), findsOneWidget);
+
+    await tester.enterText(input, '关注 \$BDT');
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+    expect(find.byKey(const Key('suggest-BK1036.EM')), findsOneWidget);
+    expect(find.byKey(const Key('suggest-512480.SH')), findsOneWidget);
+    expect(find.text('板块'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('suggest-512480.SH')));
+    await tester.pump();
+    expect(find.text('关注 \$半导体ETF '), findsOneWidget);
+    expect(find.byKey(const Key('suggest-BK1036.EM')), findsNothing);
+
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pumpAndSettle();
+    final entry = (await tester.runAsync(() => db.select(db.journalEntries).getSingle()))!;
+    expect(entry.instrumentCodes, ['512480.SH']);
+    await disposeApp(tester);
+  });
+
   testWidgets('切换到设置页可打开常用短语', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.text('设置').last);
@@ -157,6 +205,7 @@ void main() {
     await disposeApp(tester);
   });
 }
+
 
 
 

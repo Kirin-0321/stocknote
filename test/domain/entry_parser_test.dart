@@ -24,6 +24,11 @@ void main() {
     expect(p.tags, ['情绪退潮', 'a']);
   });
 
+  test('名称可含括号、罗马数字、*ST，遇空白或标点结束', () {
+    expect(EntryParser.parse('\$智算中心（AIDC） 走强').instrumentRefs, ['智算中心（AIDC）']);
+    expect(EntryParser.parse('\$综合Ⅲ，\$*ST某某 观察').instrumentRefs, ['综合Ⅲ', '*ST某某']);
+  });
+
   test('空输入', () {
     expect(EntryParser.parse('   ').isEmpty, isTrue);
   });

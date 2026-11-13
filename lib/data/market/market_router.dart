@@ -48,10 +48,17 @@ class MarketRouter {
   static const _maxCooldown = Duration(minutes: 5);
 
   /// 某能力的默认优先级。
+  /// Tushare 默认首选；它没有当日实时数据的能力（分时、板块实时排行）由免费源优先，Tushare 盘后兜底。
   static const defaultPriority = <Capability, List<SourceId>>{
-    Capability.quotes: [SourceId.eastmoney, SourceId.tencent],
+    Capability.quotes: [SourceId.tushare, SourceId.tencent, SourceId.eastmoney],
     Capability.intraday: [SourceId.eastmoney, SourceId.tencent],
     Capability.dailyKline: [SourceId.tushare, SourceId.eastmoney, SourceId.tencent],
+    Capability.breadth: [SourceId.tushare, SourceId.eastmoney],
+    Capability.limitStats: [SourceId.tushare, SourceId.eastmoney],
+    Capability.turnover: [SourceId.tushare, SourceId.eastmoney, SourceId.tencent],
+    Capability.sectorRank: [SourceId.eastmoney, SourceId.tencent, SourceId.tushare],
+    Capability.sectorMembers: [SourceId.tushare, SourceId.eastmoney],
+    Capability.etfRank: [SourceId.tushare, SourceId.eastmoney],
     Capability.instruments: [SourceId.tushare, SourceId.eastmoney],
     Capability.calendar: [SourceId.tushare],
   };
@@ -71,17 +78,20 @@ class MarketRouter {
 
   SourceHealth healthOf(SourceId id) => health.putIfAbsent(id, SourceHealth.new);
 
+  /// 退避状态按"数据源 + 能力"分别记录：某个接口失败不影响同一源的其他能力。
+  final Map<(SourceId, Capability), ({int fails, DateTime until})> _backoff = {};
+
+  bool coolingDown(SourceId id, Capability c) =>
+      _backoff[(id, c)]?.until.isAfter(_now()) ?? false;
+
   Future<T> call<T>(Capability c, Future<T> Function(MarketSource s) fn) async {
     final errors = <SourceId, Object>{};
     final candidates = orderFor(c).where((s) => s.isAvailable).toList();
     if (candidates.isEmpty) {
       throw AllSourcesFailed(c, {});
     }
-    // 先试不在熔断期的源；若全部熔断，仍按顺序尝试（避免永远拿不到数据）。
-    final now = _now();
-    final ready = candidates
-        .where((s) => healthOf(s.id).cooldownUntil?.isAfter(now) != true)
-        .toList();
+    // 先试不在退避期的源；若全部在退避期，仍按顺序尝试（避免永远拿不到数据）。
+    final ready = candidates.where((s) => !coolingDown(s.id, c)).toList();
     final order = ready.isEmpty ? candidates : ready;
 
     for (final s in order) {
@@ -89,6 +99,7 @@ class MarketRouter {
       final started = _now();
       try {
         final result = await fn(s).timeout(timeout);
+        _backoff.remove((s.id, c));
         h
           ..successes += 1
           ..consecutiveFailures = 0
@@ -99,15 +110,17 @@ class MarketRouter {
       } on UnsupportedRequest catch (e) {
         errors[s.id] = e.message;
       } catch (e) {
+        final fails = (_backoff[(s.id, c)]?.fails ?? 0) + 1;
+        final cd = _baseCooldown * (1 << (fails - 1).clamp(0, 5));
+        final until = _now().add(cd > _maxCooldown ? _maxCooldown : cd);
+        _backoff[(s.id, c)] = (fails: fails, until: until);
         h
           ..failures += 1
           ..consecutiveFailures += 1
           ..lastFailure = _now()
-          ..lastError = _describe(e);
-        final factor = 1 << (h.consecutiveFailures - 1).clamp(0, 5);
-        final cd = _baseCooldown * factor;
-        h.cooldownUntil = _now().add(cd > _maxCooldown ? _maxCooldown : cd);
-        errors[s.id] = h.lastError!;
+          ..lastError = '${c.label}：${_describe(e)}'
+          ..cooldownUntil = until;
+        errors[s.id] = _describe(e);
       }
     }
     throw AllSourcesFailed(c, errors);
