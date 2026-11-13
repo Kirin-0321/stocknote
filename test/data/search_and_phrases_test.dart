@@ -5,6 +5,7 @@ import 'package:stocknote/core/time/market_clock.dart';
 import 'package:stocknote/data/db/app_database.dart';
 import 'package:stocknote/data/repo/journal_repository.dart';
 import 'package:stocknote/data/repo/quick_phrase_repository.dart';
+import 'package:stocknote/domain/journal/entry_class.dart';
 import 'package:stocknote/domain/journal/vocab.dart';
 
 void main() {
@@ -20,10 +21,19 @@ void main() {
 
   group('搜索', () {
     setUp(() async {
-      await journal.create(content: '放量突破 #突破', tags: ['突破'], stance: 'bull');
       await journal.create(
-          content: '\$600519 缩量回调', instrumentCodes: ['600519'], emotion: 'calm');
-      await journal.create(content: '追高了 #教训', tags: ['教训'], emotion: 'fomo', action: 'buy');
+          content: '放量突破 #突破',
+          tags: ['突破'],
+          classification: const EntryClass(category: 'judge', stance: 'bull'));
+      await journal.create(
+          content: '\$600519 缩量回调',
+          instrumentCodes: ['600519'],
+          classification:
+              const EntryClass(category: 'observe', subcategory: 'stock', emotion: 'calm'));
+      await journal.create(
+          content: '追高了 #教训',
+          tags: ['教训'],
+          classification: const EntryClass(category: 'plan', action: 'buy', emotion: 'fomo'));
     });
 
     test('关键词匹配内容 / 标签 / 代码，多个词需全部命中', () async {
@@ -31,6 +41,14 @@ void main() {
       expect((await journal.search(const JournalQuery(text: '600519'))).length, 1);
       expect((await journal.search(const JournalQuery(text: '追高 教训'))).length, 1);
       expect(await journal.search(const JournalQuery(text: '追高 突破')), isEmpty);
+    });
+
+    test('按一级 / 二级分类过滤', () async {
+      expect((await journal.search(const JournalQuery(category: 'judge'))).length, 1);
+      expect((await journal.search(const JournalQuery(category: 'observe', subcategory: 'stock')))
+          .single
+          .content, contains('缩量'));
+      expect(await journal.search(const JournalQuery(category: 'review')), isEmpty);
     });
 
     test('按要素与标签过滤', () async {
@@ -86,3 +104,4 @@ void main() {
     });
   });
 }
+

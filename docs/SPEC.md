@@ -114,10 +114,20 @@
 **3.2.2 快捷输入**
 - 首页常驻悬浮按钮 + 桌面小组件（Widget）+ 通知栏快捷入口，**一步打开输入框**
 - 输入框为单行起步、可展开；回车即保存为一条（连续回车 = 连续分条）
-- 快捷要素（输入框上方一排 Chip，点选即加入）：
-  - 观点：看多 / 看空 / 观望
-  - 动作：买入 / 卖出 / 加仓 / 减仓 / 空仓 / 持有
-  - 情绪：冷静 / 犹豫 / FOMO / 恐慌 / 贪婪（用于后续情绪 vs 胜率分析）
+- **二级分类**（v0.3，输入框上方：第一行一级分类，选中后第二行展开二级）：
+
+  | 一级 | 含义 | 二级展开 |
+  |---|---|---|
+  | 观察 | 对现象的描述与分析，可针对某个目标，也可以是新闻 | 主题：盘面 / 板块题材 / 个股 / 消息新闻 / 资金 / 其他 |
+  | 判断 | 对某个对象的多空判断（M3 可自动验证） | 对象：大盘 / 指数 / 板块题材 / 个股 / ETF；方向：看多 / 看空 / 震荡；周期：今日 / T+1 / 本周 / 中期 |
+  | 计划 | 预计近期 / 未来买卖股票或 ETF | 动作：买入 / 加仓 / 减仓 / 卖出；时间：今日 / 近期 / 未来 |
+  | 复盘 | 事后总结 | 类型：当日 / 交易 / 判断 / 其他 |
+  | 其他 | 任意内容 | 无 |
+
+  - 未选一级分类时保存为“其他”；连续记录时保留上次的一级分类，二级与情绪清空
+  - 判断未选对象但正文 `$` 关联了标的时，按标的类型自动补全对象
+  - 输入框提示随分类变化，引导写出对象、方向、理由
+  - 情绪（可选，任意分类）：冷静 / 犹豫 / FOMO / 恐慌 / 贪婪（用于后续情绪 vs 胜率分析）
   - 自定义常用短语（设置中管理，如“放量突破”“缩量回调”“冲高回落”）
 - 行内语法（可选，熟手用）：
   - `$600519` 或 `$茅台` → 关联股票（代码/拼音/名称联想）
@@ -321,7 +331,8 @@ lib/
 ```
 instrument       (code PK, name, type[stock|etf|index|sector], exchange, pinyin, list_date, extra[json])
 trading_day      (date PK, is_trading, note)
-journal_entry    (id, trade_date, session, ts, content, stance, action, emotion,
+journal_entry    (id, trade_date, session, ts, content, category, subcategory,
+                  stance[判断方向], action[计划动作], horizon[判断周期/计划时间], emotion,
                   tags[json], instrument_codes[json], snapshot_id, template_id, revision_count)
 market_snapshot  (id, ts, indices[json], breadth[json], turnover, extra[json], is_backfilled)
 prediction       (id, entry_id NULL, source[user|ai], analysis_id NULL,

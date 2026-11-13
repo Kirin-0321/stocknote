@@ -85,11 +85,20 @@ class JournalEntries extends Table with SyncColumns {
   IntColumn get ts => integer()();
   TextColumn get content => text()();
 
-  /// bull | bear | wait
+  /// 一级分类：observe | judge | plan | review | other（v2 新增；旧数据为 null）
+  TextColumn get category => text().nullable()();
+
+  /// 二级分类：观察主题 / 判断对象 / 复盘类型
+  TextColumn get subcategory => text().nullable()();
+
+  /// 判断方向：bull | bear | range（旧版另有 wait）
   TextColumn get stance => text().nullable()();
 
-  /// buy | sell | add | reduce | flat | hold
+  /// 计划动作：buy | add | reduce | sell（旧版另有 hold | flat）
   TextColumn get action => text().nullable()();
+
+  /// 判断周期（close | t1 | t5 | mid）或计划时间（today | soon | future）
+  TextColumn get horizon => text().nullable()();
   TextColumn get emotion => text().nullable()();
   TextColumn get tags =>
       text().map(const StringListConverter()).withDefault(const Constant('[]'))();

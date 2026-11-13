@@ -1,4 +1,3 @@
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -6,8 +5,8 @@ import '../../app/providers.dart';
 import '../../core/format.dart';
 import '../../core/time/market_clock.dart';
 import '../../data/db/app_database.dart';
+import '../../data/repo/journal_repository.dart';
 import '../../domain/journal/entry_parser.dart';
-import '../../domain/journal/vocab.dart';
 import 'journal_page.dart';
 import 'revision_history_page.dart';
 import 'widgets/attribute_chips.dart';
@@ -33,11 +32,7 @@ class EditEntrySheet extends ConsumerStatefulWidget {
 
 class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
   late final _controller = TextEditingController(text: widget.entry.content);
-  late var _attrs = EntryAttributes(
-    stance: byCode(Stance.values, widget.entry.stance),
-    action: byCode(TradeAction.values, widget.entry.action),
-    emotion: byCode(Emotion.values, widget.entry.emotion),
-  );
+  late var _cls = widget.entry.classification;
   late var _ts = widget.entry.ts;
   var _saving = false;
 
@@ -76,9 +71,7 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
     await ref.read(journalRepositoryProvider).update(
           widget.entry.id,
           content: parsed.content,
-          stance: Value(_attrs.stance?.code),
-          action: Value(_attrs.action?.code),
-          emotion: Value(_attrs.emotion?.code),
+          classification: _cls,
           tags: parsed.tags,
           instrumentCodes: codes,
           at: _ts == widget.entry.ts
@@ -91,11 +84,6 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    Widget label(String text) => Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 4),
-          child: Text(text, style: theme.textTheme.labelLarge),
-        );
-
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SingleChildScrollView(
@@ -121,21 +109,7 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
               maxLines: 10,
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
-            label('观点'),
-            ChoiceGroup(
-                values: Stance.values,
-                selected: _attrs.stance,
-                onChanged: (v) => setState(() => _attrs = _attrs.withStance(v))),
-            label('动作'),
-            ChoiceGroup(
-                values: TradeAction.values,
-                selected: _attrs.action,
-                onChanged: (v) => setState(() => _attrs = _attrs.withAction(v))),
-            label('情绪'),
-            ChoiceGroup(
-                values: Emotion.values,
-                selected: _attrs.emotion,
-                onChanged: (v) => setState(() => _attrs = _attrs.withEmotion(v))),
+            CategoryForm(value: _cls, onChanged: (v) => setState(() => _cls = v)),
             const SizedBox(height: 16),
             Row(children: [
               TextButton.icon(
@@ -166,3 +140,4 @@ class _EditEntrySheetState extends ConsumerState<EditEntrySheet> {
     );
   }
 }
+

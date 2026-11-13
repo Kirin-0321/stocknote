@@ -1,4 +1,3 @@
-import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stocknote/core/calendar/trading_calendar.dart';
@@ -7,6 +6,7 @@ import 'package:stocknote/core/time/trading_session.dart';
 import 'package:stocknote/data/db/app_database.dart';
 import 'package:stocknote/data/repo/calendar_repository.dart';
 import 'package:stocknote/data/repo/journal_repository.dart';
+import 'package:stocknote/domain/journal/entry_class.dart';
 
 void main() {
   late AppDatabase db;
@@ -22,7 +22,10 @@ void main() {
   tearDown(() => db.close());
 
   test('创建条目时自动分配交易日、时段与设备 ID', () async {
-    final e = await repo.create(content: '放量突破，看多', stance: 'bull', tags: ['突破']);
+    final e = await repo.create(
+        content: '放量突破，看多',
+        classification: const EntryClass(category: 'judge', subcategory: 'market', stance: 'bull'),
+        tags: ['突破']);
     expect(e.tradeDate, '20261113');
     expect(e.session, TradingSession.morning.code);
     expect(e.tags, ['突破']);
@@ -31,10 +34,11 @@ void main() {
   });
 
   test('修改记录历史：保存修改前快照与变动字段', () async {
-    final e = await repo.create(content: 'v1', stance: 'bull');
+    final e = await repo.create(content: 'v1', classification: const EntryClass(category: 'judge', stance: 'bull'));
 
     clock = clock.add(const Duration(minutes: 30));
-    final e2 = await repo.update(e.id, content: 'v2', stance: const Value('bear'));
+    final e2 = await repo.update(e.id,
+        content: 'v2', classification: const EntryClass(category: 'judge', stance: 'bear'));
     expect(e2.content, 'v2');
     expect(e2.stance, 'bear');
     expect(e2.revisionCount, 1);
@@ -100,3 +104,5 @@ void main() {
     ]));
   });
 }
+
+

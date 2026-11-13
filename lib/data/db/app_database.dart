@@ -39,13 +39,23 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open() => AppDatabase(driftDatabase(name: 'stocknote'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
           await _createIndexes();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // v2：日记二级分类
+            await m.addColumn(journalEntries, journalEntries.category);
+            await m.addColumn(journalEntries, journalEntries.subcategory);
+            await m.addColumn(journalEntries, journalEntries.horizon);
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_entry_category ON journal_entries(category, subcategory)');
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -55,6 +65,7 @@ class AppDatabase extends _$AppDatabase {
   Future<void> _createIndexes() async {
     const stmts = [
       'CREATE INDEX idx_entry_date ON journal_entries(trade_date, ts)',
+      'CREATE INDEX idx_entry_category ON journal_entries(category, subcategory)',
       'CREATE INDEX idx_prediction_due ON predictions(due_date)',
       'CREATE INDEX idx_prediction_entry ON predictions(entry_id)',
       'CREATE INDEX idx_result_prediction ON prediction_results(prediction_id)',

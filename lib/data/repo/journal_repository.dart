@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../core/calendar/trading_calendar.dart';
 import '../../core/ids.dart';
 import '../../core/time/market_clock.dart';
+import '../../domain/journal/entry_class.dart';
 import '../db/app_database.dart';
 import 'revision_recorder.dart';
 
@@ -23,9 +24,7 @@ class JournalRepository {
   Future<JournalEntry> create({
     required String content,
     DateTime? at,
-    String? stance,
-    String? action,
-    String? emotion,
+    EntryClass classification = EntryClass.empty,
     List<String> tags = const [],
     List<String> instrumentCodes = const [],
     String? snapshotId,
@@ -35,6 +34,7 @@ class JournalRepository {
     final loc = _calendar.locate(instant);
     final nowMs = _now().millisecondsSinceEpoch;
     final id = newId();
+    final cls = classification.normalized();
     await _db.into(_db.journalEntries).insert(JournalEntriesCompanion.insert(
           id: id,
           createdAt: nowMs,
@@ -44,9 +44,12 @@ class JournalRepository {
           session: loc.session.code,
           ts: instant.millisecondsSinceEpoch,
           content: content,
-          stance: Value(stance),
-          action: Value(action),
-          emotion: Value(emotion),
+          category: Value(cls.category),
+          subcategory: Value(cls.subcategory),
+          stance: Value(cls.stance),
+          action: Value(cls.action),
+          horizon: Value(cls.horizon),
+          emotion: Value(cls.emotion),
           tags: Value(tags),
           instrumentCodes: Value(instrumentCodes),
           snapshotId: Value(snapshotId),
@@ -65,9 +68,7 @@ class JournalRepository {
     String id, {
     String? content,
     DateTime? at,
-    Value<String?> stance = const Value.absent(),
-    Value<String?> action = const Value.absent(),
-    Value<String?> emotion = const Value.absent(),
+    EntryClass? classification,
     List<String>? tags,
     List<String>? instrumentCodes,
   }) {
@@ -77,12 +78,20 @@ class JournalRepository {
 
       var next = current.copyWith(
         content: content ?? current.content,
-        stance: stance.present ? stance : Value(current.stance),
-        action: action.present ? action : Value(current.action),
-        emotion: emotion.present ? emotion : Value(current.emotion),
         tags: tags ?? current.tags,
         instrumentCodes: instrumentCodes ?? current.instrumentCodes,
       );
+      if (classification != null) {
+        final c = classification.normalized();
+        next = next.copyWith(
+          category: Value(c.category),
+          subcategory: Value(c.subcategory),
+          stance: Value(c.stance),
+          action: Value(c.action),
+          horizon: Value(c.horizon),
+          emotion: Value(c.emotion),
+        );
+      }
       if (at != null) {
         final loc = _calendar.locate(at);
         next = next.copyWith(
@@ -141,6 +150,8 @@ class JournalRepository {
       final p = '%${term.replaceAll('%', '').replaceAll('_', '')}%';
       query.where((e) => e.content.like(p) | e.tags.like(p) | e.instrumentCodes.like(p));
     }
+    if (q.category != null) query.where((e) => e.category.equals(q.category!));
+    if (q.subcategory != null) query.where((e) => e.subcategory.equals(q.subcategory!));
     if (q.stance != null) query.where((e) => e.stance.equals(q.stance!));
     if (q.action != null) query.where((e) => e.action.equals(q.action!));
     if (q.emotion != null) query.where((e) => e.emotion.equals(q.emotion!));
@@ -169,6 +180,8 @@ class JournalRepository {
 class JournalQuery {
   const JournalQuery({
     this.text = '',
+    this.category,
+    this.subcategory,
     this.stance,
     this.action,
     this.emotion,
@@ -178,6 +191,8 @@ class JournalQuery {
   });
 
   final String text;
+  final String? category;
+  final String? subcategory;
   final String? stance;
   final String? action;
   final String? emotion;
@@ -190,9 +205,22 @@ class JournalQuery {
 
   bool get isEmpty =>
       terms.isEmpty &&
+      category == null &&
+      subcategory == null &&
       stance == null &&
       action == null &&
       emotion == null &&
       tag == null &&
       instrument == null;
+}
+
+extension JournalEntryClass on JournalEntry {
+  EntryClass get classification => EntryClass(
+        category: category,
+        subcategory: subcategory,
+        stance: stance,
+        action: action,
+        horizon: horizon,
+        emotion: emotion,
+      );
 }

@@ -7,6 +7,7 @@ import '../../app/providers.dart';
 import '../../core/time/market_clock.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repo/journal_repository.dart';
+import '../../domain/journal/entry_class.dart';
 import 'widgets/attribute_chips.dart';
 import 'widgets/entry_card.dart';
 
@@ -20,7 +21,7 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final _controller = TextEditingController();
-  var _attrs = EntryAttributes.empty;
+  var _cls = EntryClass.empty;
   List<JournalEntry>? _results;
   Timer? _debounce;
 
@@ -39,9 +40,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Future<void> _run() async {
     final q = JournalQuery(
       text: _controller.text,
-      stance: _attrs.stance?.code,
-      action: _attrs.action?.code,
-      emotion: _attrs.emotion?.code,
+      category: _cls.category,
+      subcategory: _cls.subcategory,
+      stance: _cls.stance,
+      action: _cls.action,
+      emotion: _cls.emotion,
     );
     if (q.isEmpty) {
       setState(() => _results = null);
@@ -80,10 +83,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: AttributeBar(
-            value: _attrs,
+          child: CategoryPicker(
+            value: _cls,
             onChanged: (v) {
-              setState(() => _attrs = v);
+              setState(() => _cls = v);
               _run();
             },
           ),
@@ -119,3 +122,4 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
   }
 }
+

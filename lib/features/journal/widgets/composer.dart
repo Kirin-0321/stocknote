@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../app/providers.dart';
+import '../../../data/market/code_util.dart';
+import '../../../data/market/models.dart';
+import '../../../domain/journal/entry_class.dart';
 import '../../../domain/journal/entry_parser.dart';
+import '../../../domain/journal/vocab.dart';
 import '../journal_providers.dart';
 import 'attribute_chips.dart';
 
@@ -25,7 +29,7 @@ class Composer extends ConsumerStatefulWidget {
 class _ComposerState extends ConsumerState<Composer> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
-  var _attrs = EntryAttributes.empty;
+  var _cls = EntryClass.empty;
   var _expanded = false;
   var _saving = false;
 
@@ -54,14 +58,13 @@ class _ComposerState extends ConsumerState<Composer> {
       final repo = ref.read(journalRepositoryProvider);
       final entry = await repo.create(
         content: parsed.content,
-        stance: _attrs.stance?.code,
-        action: _attrs.action?.code,
-        emotion: _attrs.emotion?.code,
+        classification: inferJudgeTarget(_cls, codes),
         tags: parsed.tags,
         instrumentCodes: codes,
       );
       _controller.clear();
-      setState(() => _attrs = EntryAttributes.empty);
+      // 连续记录时保留一级分类，清空二级与情绪
+      setState(() => _cls = EntryClass.empty.withCategory(_cls.categoryEnum));
       widget.onSaved?.call();
       // 行情快照在后台抓取，不阻塞连续记录
       final snapshots = ref.read(snapshotServiceProvider);
@@ -105,7 +108,7 @@ class _ComposerState extends ConsumerState<Composer> {
           children: [
             if (_expanded) ...[
               const SizedBox(height: 8),
-              AttributeBar(value: _attrs, onChanged: (v) => setState(() => _attrs = v)),
+              CategoryPicker(value: _cls, onChanged: (v) => setState(() => _cls = v)),
               if (phrases.isNotEmpty)
                 SizedBox(
                   height: 40,
@@ -146,7 +149,9 @@ class _ComposerState extends ConsumerState<Composer> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _save(),
                       decoration: InputDecoration(
-                        hintText: isToday ? '记录想法，回车保存  #标签 \$代码' : '将记录到今天',
+                        hintText: isToday
+                            ? (_cls.categoryEnum?.hint ?? '记录想法，回车保存  #标签 \$代码')
+                            : '将记录到今天',
                         filled: true,
                         isDense: true,
                         border: OutlineInputBorder(
@@ -180,3 +185,19 @@ class _ComposerState extends ConsumerState<Composer> {
     );
   }
 }
+
+/// 判断未选对象但关联了标的时，按标的类型自动补全判断对象。
+EntryClass inferJudgeTarget(EntryClass cls, List<String> codes) {
+  if (cls.categoryEnum != EntryCategory.judge || cls.subcategory != null) return cls;
+  final code = codes.where((c) => c.contains('.')).firstOrNull;
+  if (code == null) return cls;
+  final target = switch (Codes.guessType(code)) {
+    InstrumentType.stock => JudgeTarget.stock,
+    InstrumentType.etf => JudgeTarget.etf,
+    InstrumentType.sector => JudgeTarget.sector,
+    InstrumentType.marketIndex =>
+      code == '000001.SH' ? JudgeTarget.market : JudgeTarget.marketIndex,
+  };
+  return cls.withField(TagField.subcategory, target.code);
+}
+

@@ -1579,6 +1579,28 @@ class $JournalEntriesTable extends JournalEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _subcategoryMeta = const VerificationMeta(
+    'subcategory',
+  );
+  @override
+  late final GeneratedColumn<String> subcategory = GeneratedColumn<String>(
+    'subcategory',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _stanceMeta = const VerificationMeta('stance');
   @override
   late final GeneratedColumn<String> stance = GeneratedColumn<String>(
@@ -1592,6 +1614,17 @@ class $JournalEntriesTable extends JournalEntries
   @override
   late final GeneratedColumn<String> action = GeneratedColumn<String>(
     'action',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _horizonMeta = const VerificationMeta(
+    'horizon',
+  );
+  @override
+  late final GeneratedColumn<String> horizon = GeneratedColumn<String>(
+    'horizon',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -1673,8 +1706,11 @@ class $JournalEntriesTable extends JournalEntries
     session,
     ts,
     content,
+    category,
+    subcategory,
     stance,
     action,
+    horizon,
     emotion,
     tags,
     instrumentCodes,
@@ -1758,6 +1794,21 @@ class $JournalEntriesTable extends JournalEntries
     } else if (isInserting) {
       context.missing(_contentMeta);
     }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    }
+    if (data.containsKey('subcategory')) {
+      context.handle(
+        _subcategoryMeta,
+        subcategory.isAcceptableOrUnknown(
+          data['subcategory']!,
+          _subcategoryMeta,
+        ),
+      );
+    }
     if (data.containsKey('stance')) {
       context.handle(
         _stanceMeta,
@@ -1768,6 +1819,12 @@ class $JournalEntriesTable extends JournalEntries
       context.handle(
         _actionMeta,
         action.isAcceptableOrUnknown(data['action']!, _actionMeta),
+      );
+    }
+    if (data.containsKey('horizon')) {
+      context.handle(
+        _horizonMeta,
+        horizon.isAcceptableOrUnknown(data['horizon']!, _horizonMeta),
       );
     }
     if (data.containsKey('emotion')) {
@@ -1842,6 +1899,14 @@ class $JournalEntriesTable extends JournalEntries
         DriftSqlType.string,
         data['${effectivePrefix}content'],
       )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      ),
+      subcategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subcategory'],
+      ),
       stance: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}stance'],
@@ -1849,6 +1914,10 @@ class $JournalEntriesTable extends JournalEntries
       action: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}action'],
+      ),
+      horizon: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}horizon'],
       ),
       emotion: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -1905,11 +1974,20 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
   final int ts;
   final String content;
 
-  /// bull | bear | wait
+  /// 一级分类：observe | judge | plan | review | other（v2 新增；旧数据为 null）
+  final String? category;
+
+  /// 二级分类：观察主题 / 判断对象 / 复盘类型
+  final String? subcategory;
+
+  /// 判断方向：bull | bear | range（旧版另有 wait）
   final String? stance;
 
-  /// buy | sell | add | reduce | flat | hold
+  /// 计划动作：buy | add | reduce | sell（旧版另有 hold | flat）
   final String? action;
+
+  /// 判断周期（close | t1 | t5 | mid）或计划时间（today | soon | future）
+  final String? horizon;
   final String? emotion;
   final List<String> tags;
   final List<String> instrumentCodes;
@@ -1926,8 +2004,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
     required this.session,
     required this.ts,
     required this.content,
+    this.category,
+    this.subcategory,
     this.stance,
     this.action,
+    this.horizon,
     this.emotion,
     required this.tags,
     required this.instrumentCodes,
@@ -1949,11 +2030,20 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
     map['session'] = Variable<String>(session);
     map['ts'] = Variable<int>(ts);
     map['content'] = Variable<String>(content);
+    if (!nullToAbsent || category != null) {
+      map['category'] = Variable<String>(category);
+    }
+    if (!nullToAbsent || subcategory != null) {
+      map['subcategory'] = Variable<String>(subcategory);
+    }
     if (!nullToAbsent || stance != null) {
       map['stance'] = Variable<String>(stance);
     }
     if (!nullToAbsent || action != null) {
       map['action'] = Variable<String>(action);
+    }
+    if (!nullToAbsent || horizon != null) {
+      map['horizon'] = Variable<String>(horizon);
     }
     if (!nullToAbsent || emotion != null) {
       map['emotion'] = Variable<String>(emotion);
@@ -1991,12 +2081,21 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
       session: Value(session),
       ts: Value(ts),
       content: Value(content),
+      category: category == null && nullToAbsent
+          ? const Value.absent()
+          : Value(category),
+      subcategory: subcategory == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subcategory),
       stance: stance == null && nullToAbsent
           ? const Value.absent()
           : Value(stance),
       action: action == null && nullToAbsent
           ? const Value.absent()
           : Value(action),
+      horizon: horizon == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horizon),
       emotion: emotion == null && nullToAbsent
           ? const Value.absent()
           : Value(emotion),
@@ -2027,8 +2126,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
       session: serializer.fromJson<String>(json['session']),
       ts: serializer.fromJson<int>(json['ts']),
       content: serializer.fromJson<String>(json['content']),
+      category: serializer.fromJson<String?>(json['category']),
+      subcategory: serializer.fromJson<String?>(json['subcategory']),
       stance: serializer.fromJson<String?>(json['stance']),
       action: serializer.fromJson<String?>(json['action']),
+      horizon: serializer.fromJson<String?>(json['horizon']),
       emotion: serializer.fromJson<String?>(json['emotion']),
       tags: serializer.fromJson<List<String>>(json['tags']),
       instrumentCodes: serializer.fromJson<List<String>>(
@@ -2052,8 +2154,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
       'session': serializer.toJson<String>(session),
       'ts': serializer.toJson<int>(ts),
       'content': serializer.toJson<String>(content),
+      'category': serializer.toJson<String?>(category),
+      'subcategory': serializer.toJson<String?>(subcategory),
       'stance': serializer.toJson<String?>(stance),
       'action': serializer.toJson<String?>(action),
+      'horizon': serializer.toJson<String?>(horizon),
       'emotion': serializer.toJson<String?>(emotion),
       'tags': serializer.toJson<List<String>>(tags),
       'instrumentCodes': serializer.toJson<List<String>>(instrumentCodes),
@@ -2073,8 +2178,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
     String? session,
     int? ts,
     String? content,
+    Value<String?> category = const Value.absent(),
+    Value<String?> subcategory = const Value.absent(),
     Value<String?> stance = const Value.absent(),
     Value<String?> action = const Value.absent(),
+    Value<String?> horizon = const Value.absent(),
     Value<String?> emotion = const Value.absent(),
     List<String>? tags,
     List<String>? instrumentCodes,
@@ -2091,8 +2199,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
     session: session ?? this.session,
     ts: ts ?? this.ts,
     content: content ?? this.content,
+    category: category.present ? category.value : this.category,
+    subcategory: subcategory.present ? subcategory.value : this.subcategory,
     stance: stance.present ? stance.value : this.stance,
     action: action.present ? action.value : this.action,
+    horizon: horizon.present ? horizon.value : this.horizon,
     emotion: emotion.present ? emotion.value : this.emotion,
     tags: tags ?? this.tags,
     instrumentCodes: instrumentCodes ?? this.instrumentCodes,
@@ -2111,8 +2222,13 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
       session: data.session.present ? data.session.value : this.session,
       ts: data.ts.present ? data.ts.value : this.ts,
       content: data.content.present ? data.content.value : this.content,
+      category: data.category.present ? data.category.value : this.category,
+      subcategory: data.subcategory.present
+          ? data.subcategory.value
+          : this.subcategory,
       stance: data.stance.present ? data.stance.value : this.stance,
       action: data.action.present ? data.action.value : this.action,
+      horizon: data.horizon.present ? data.horizon.value : this.horizon,
       emotion: data.emotion.present ? data.emotion.value : this.emotion,
       tags: data.tags.present ? data.tags.value : this.tags,
       instrumentCodes: data.instrumentCodes.present
@@ -2142,8 +2258,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
           ..write('session: $session, ')
           ..write('ts: $ts, ')
           ..write('content: $content, ')
+          ..write('category: $category, ')
+          ..write('subcategory: $subcategory, ')
           ..write('stance: $stance, ')
           ..write('action: $action, ')
+          ..write('horizon: $horizon, ')
           ..write('emotion: $emotion, ')
           ..write('tags: $tags, ')
           ..write('instrumentCodes: $instrumentCodes, ')
@@ -2165,8 +2284,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
     session,
     ts,
     content,
+    category,
+    subcategory,
     stance,
     action,
+    horizon,
     emotion,
     tags,
     instrumentCodes,
@@ -2187,8 +2309,11 @@ class JournalEntry extends DataClass implements Insertable<JournalEntry> {
           other.session == this.session &&
           other.ts == this.ts &&
           other.content == this.content &&
+          other.category == this.category &&
+          other.subcategory == this.subcategory &&
           other.stance == this.stance &&
           other.action == this.action &&
+          other.horizon == this.horizon &&
           other.emotion == this.emotion &&
           other.tags == this.tags &&
           other.instrumentCodes == this.instrumentCodes &&
@@ -2207,8 +2332,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
   final Value<String> session;
   final Value<int> ts;
   final Value<String> content;
+  final Value<String?> category;
+  final Value<String?> subcategory;
   final Value<String?> stance;
   final Value<String?> action;
+  final Value<String?> horizon;
   final Value<String?> emotion;
   final Value<List<String>> tags;
   final Value<List<String>> instrumentCodes;
@@ -2226,8 +2354,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
     this.session = const Value.absent(),
     this.ts = const Value.absent(),
     this.content = const Value.absent(),
+    this.category = const Value.absent(),
+    this.subcategory = const Value.absent(),
     this.stance = const Value.absent(),
     this.action = const Value.absent(),
+    this.horizon = const Value.absent(),
     this.emotion = const Value.absent(),
     this.tags = const Value.absent(),
     this.instrumentCodes = const Value.absent(),
@@ -2246,8 +2377,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
     required String session,
     required int ts,
     required String content,
+    this.category = const Value.absent(),
+    this.subcategory = const Value.absent(),
     this.stance = const Value.absent(),
     this.action = const Value.absent(),
+    this.horizon = const Value.absent(),
     this.emotion = const Value.absent(),
     this.tags = const Value.absent(),
     this.instrumentCodes = const Value.absent(),
@@ -2273,8 +2407,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
     Expression<String>? session,
     Expression<int>? ts,
     Expression<String>? content,
+    Expression<String>? category,
+    Expression<String>? subcategory,
     Expression<String>? stance,
     Expression<String>? action,
+    Expression<String>? horizon,
     Expression<String>? emotion,
     Expression<String>? tags,
     Expression<String>? instrumentCodes,
@@ -2293,8 +2430,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
       if (session != null) 'session': session,
       if (ts != null) 'ts': ts,
       if (content != null) 'content': content,
+      if (category != null) 'category': category,
+      if (subcategory != null) 'subcategory': subcategory,
       if (stance != null) 'stance': stance,
       if (action != null) 'action': action,
+      if (horizon != null) 'horizon': horizon,
       if (emotion != null) 'emotion': emotion,
       if (tags != null) 'tags': tags,
       if (instrumentCodes != null) 'instrument_codes': instrumentCodes,
@@ -2315,8 +2455,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
     Value<String>? session,
     Value<int>? ts,
     Value<String>? content,
+    Value<String?>? category,
+    Value<String?>? subcategory,
     Value<String?>? stance,
     Value<String?>? action,
+    Value<String?>? horizon,
     Value<String?>? emotion,
     Value<List<String>>? tags,
     Value<List<String>>? instrumentCodes,
@@ -2335,8 +2478,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
       session: session ?? this.session,
       ts: ts ?? this.ts,
       content: content ?? this.content,
+      category: category ?? this.category,
+      subcategory: subcategory ?? this.subcategory,
       stance: stance ?? this.stance,
       action: action ?? this.action,
+      horizon: horizon ?? this.horizon,
       emotion: emotion ?? this.emotion,
       tags: tags ?? this.tags,
       instrumentCodes: instrumentCodes ?? this.instrumentCodes,
@@ -2377,11 +2523,20 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
     if (content.present) {
       map['content'] = Variable<String>(content.value);
     }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (subcategory.present) {
+      map['subcategory'] = Variable<String>(subcategory.value);
+    }
     if (stance.present) {
       map['stance'] = Variable<String>(stance.value);
     }
     if (action.present) {
       map['action'] = Variable<String>(action.value);
+    }
+    if (horizon.present) {
+      map['horizon'] = Variable<String>(horizon.value);
     }
     if (emotion.present) {
       map['emotion'] = Variable<String>(emotion.value);
@@ -2425,8 +2580,11 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
           ..write('session: $session, ')
           ..write('ts: $ts, ')
           ..write('content: $content, ')
+          ..write('category: $category, ')
+          ..write('subcategory: $subcategory, ')
           ..write('stance: $stance, ')
           ..write('action: $action, ')
+          ..write('horizon: $horizon, ')
           ..write('emotion: $emotion, ')
           ..write('tags: $tags, ')
           ..write('instrumentCodes: $instrumentCodes, ')
@@ -15880,8 +16038,11 @@ typedef $$JournalEntriesTableCreateCompanionBuilder =
       required String session,
       required int ts,
       required String content,
+      Value<String?> category,
+      Value<String?> subcategory,
       Value<String?> stance,
       Value<String?> action,
+      Value<String?> horizon,
       Value<String?> emotion,
       Value<List<String>> tags,
       Value<List<String>> instrumentCodes,
@@ -15901,8 +16062,11 @@ typedef $$JournalEntriesTableUpdateCompanionBuilder =
       Value<String> session,
       Value<int> ts,
       Value<String> content,
+      Value<String?> category,
+      Value<String?> subcategory,
       Value<String?> stance,
       Value<String?> action,
+      Value<String?> horizon,
       Value<String?> emotion,
       Value<List<String>> tags,
       Value<List<String>> instrumentCodes,
@@ -15966,6 +16130,16 @@ class $$JournalEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subcategory => $composableBuilder(
+    column: $table.subcategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get stance => $composableBuilder(
     column: $table.stance,
     builder: (column) => ColumnFilters(column),
@@ -15973,6 +16147,11 @@ class $$JournalEntriesTableFilterComposer
 
   ColumnFilters<String> get action => $composableBuilder(
     column: $table.action,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get horizon => $composableBuilder(
+    column: $table.horizon,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16063,6 +16242,16 @@ class $$JournalEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subcategory => $composableBuilder(
+    column: $table.subcategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get stance => $composableBuilder(
     column: $table.stance,
     builder: (column) => ColumnOrderings(column),
@@ -16070,6 +16259,11 @@ class $$JournalEntriesTableOrderingComposer
 
   ColumnOrderings<String> get action => $composableBuilder(
     column: $table.action,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get horizon => $composableBuilder(
+    column: $table.horizon,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -16140,11 +16334,22 @@ class $$JournalEntriesTableAnnotationComposer
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
 
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get subcategory => $composableBuilder(
+    column: $table.subcategory,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get stance =>
       $composableBuilder(column: $table.stance, builder: (column) => column);
 
   GeneratedColumn<String> get action =>
       $composableBuilder(column: $table.action, builder: (column) => column);
+
+  GeneratedColumn<String> get horizon =>
+      $composableBuilder(column: $table.horizon, builder: (column) => column);
 
   GeneratedColumn<String> get emotion =>
       $composableBuilder(column: $table.emotion, builder: (column) => column);
@@ -16216,8 +16421,11 @@ class $$JournalEntriesTableTableManager
                 Value<String> session = const Value.absent(),
                 Value<int> ts = const Value.absent(),
                 Value<String> content = const Value.absent(),
+                Value<String?> category = const Value.absent(),
+                Value<String?> subcategory = const Value.absent(),
                 Value<String?> stance = const Value.absent(),
                 Value<String?> action = const Value.absent(),
+                Value<String?> horizon = const Value.absent(),
                 Value<String?> emotion = const Value.absent(),
                 Value<List<String>> tags = const Value.absent(),
                 Value<List<String>> instrumentCodes = const Value.absent(),
@@ -16235,8 +16443,11 @@ class $$JournalEntriesTableTableManager
                 session: session,
                 ts: ts,
                 content: content,
+                category: category,
+                subcategory: subcategory,
                 stance: stance,
                 action: action,
+                horizon: horizon,
                 emotion: emotion,
                 tags: tags,
                 instrumentCodes: instrumentCodes,
@@ -16256,8 +16467,11 @@ class $$JournalEntriesTableTableManager
                 required String session,
                 required int ts,
                 required String content,
+                Value<String?> category = const Value.absent(),
+                Value<String?> subcategory = const Value.absent(),
                 Value<String?> stance = const Value.absent(),
                 Value<String?> action = const Value.absent(),
+                Value<String?> horizon = const Value.absent(),
                 Value<String?> emotion = const Value.absent(),
                 Value<List<String>> tags = const Value.absent(),
                 Value<List<String>> instrumentCodes = const Value.absent(),
@@ -16275,8 +16489,11 @@ class $$JournalEntriesTableTableManager
                 session: session,
                 ts: ts,
                 content: content,
+                category: category,
+                subcategory: subcategory,
                 stance: stance,
                 action: action,
+                horizon: horizon,
                 emotion: emotion,
                 tags: tags,
                 instrumentCodes: instrumentCodes,

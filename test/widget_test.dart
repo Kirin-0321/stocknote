@@ -66,7 +66,11 @@ void main() {
     await tester.tap(input);
     await tester.pumpAndSettle();
 
-    // 选"看多"，插入短语"放量突破"，再补充文字后回车
+    // 选一级"判断" → 二级"大盘""看多"，插入短语，再补充文字后回车
+    await tester.tap(find.byKey(const Key('cat-judge')));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ChoiceChip, '大盘'));
+    await tester.pump();
     await tester.tap(find.widgetWithText(ChoiceChip, '看多'));
     await tester.tap(find.widgetWithText(ActionChip, '放量突破'));
     await tester.pump();
@@ -76,6 +80,7 @@ void main() {
 
     expect(find.text('早盘'), findsOneWidget);
     expect(find.text('10:05'), findsOneWidget);
+    expect(find.text('判断·大盘'), findsOneWidget);
     expect(find.text('看多'), findsWidgets);
 
     // 连续第二条
@@ -88,6 +93,8 @@ void main() {
     await tester.tap(find.textContaining('第二条'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('edit-content')), '第二条（改）');
+    await tester.ensureVisible(find.byKey(const Key('edit-save')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit-save')));
     await tester.pumpAndSettle();
 
@@ -150,5 +157,9 @@ void main() {
     await disposeApp(tester);
   });
 }
+
+
+
+
 
 

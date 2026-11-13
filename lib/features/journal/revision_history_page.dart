@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../core/format.dart';
 import '../../core/time/trading_session.dart';
 import '../../data/db/app_database.dart';
+import '../../domain/journal/entry_class.dart';
 import '../../domain/journal/vocab.dart';
 import 'widgets/attribute_chips.dart';
 import 'widgets/highlighted_text.dart';
@@ -110,10 +111,15 @@ class _VersionCard extends StatelessWidget {
               child: HighlightedText(json['content'] as String? ?? ''),
             ),
             const SizedBox(height: 6),
-            AttributeTags(
-              stance: json['stance'] as String?,
-              action: json['action'] as String?,
-              emotion: json['emotion'] as String?,
+            ClassTags(
+              value: EntryClass(
+                category: json['category'] as String?,
+                subcategory: json['subcategory'] as String?,
+                stance: json['stance'] as String?,
+                action: json['action'] as String?,
+                horizon: json['horizon'] as String?,
+                emotion: json['emotion'] as String?,
+              ),
             ),
             if (tags.isNotEmpty)
               Padding(
@@ -126,3 +132,4 @@ class _VersionCard extends StatelessWidget {
     );
   }
 }
+

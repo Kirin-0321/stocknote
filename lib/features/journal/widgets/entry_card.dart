@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/format.dart';
 import '../../../data/db/app_database.dart';
+import '../../../data/repo/journal_repository.dart';
 import 'attribute_chips.dart';
 import 'highlighted_text.dart';
 import 'snapshot_line.dart';
@@ -47,18 +48,13 @@ class EntryCard extends StatelessWidget {
                 children: [
                   HighlightedText(entry.content),
                   if (entry.snapshotId != null) SnapshotLine(snapshotId: entry.snapshotId!),
-                  if (entry.stance != null ||
-                      entry.action != null ||
+                  if (entry.classification.labels().isNotEmpty ||
                       entry.emotion != null ||
                       entry.revisionCount > 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Row(children: [
-                        AttributeTags(
-                          stance: entry.stance,
-                          action: entry.action,
-                          emotion: entry.emotion,
-                        ),
+                        Flexible(child: ClassTags(value: entry.classification)),
                         const Spacer(),
                         if (entry.revisionCount > 0)
                           Text('已修改 ${entry.revisionCount} 次', style: muted),
@@ -73,3 +69,4 @@ class EntryCard extends StatelessWidget {
     );
   }
 }
+
