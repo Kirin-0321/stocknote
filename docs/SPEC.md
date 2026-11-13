@@ -1,0 +1,347 @@
+# StockNote 交易日记 — 产品与技术规格 (v0.2)
+
+> 状态：已确认 · 日期：2026-11-13 · 范围：Android MVP（预留 Windows 端与云同步）
+>
+> v0.2 变更：标的扩展到 A 股 + ETF + 板块；多数据源（Tushare Pro 为主）；AI 默认 DeepSeek；新增持仓与交易模块（手动 / 图片 / 表格导入）；日记与判断可事后修改并保留修改历史；判定阈值多级可调。
+
+---
+
+## 1. 产品定位
+
+一款面向 A 股个人交易者的**交易日记**应用。核心闭环：
+
+```
+看盘（大盘实时 + AI 分析） → 记录（快速、自动分条） → 验证（到期自动对答案） → 复盘（统计自己哪类判断靠谱）
+```
+
+与普通笔记的区别：每条日记都会**自动绑定当时的行情快照**，并可附带一个**可验证的判断**，到期后系统自动拉取实际行情判定对错，长期积累出“我的判断准确率画像”。
+
+### 1.1 目标用户
+- 有一定经验的 A 股短线 / 波段交易者
+- 习惯盘中随手记想法，但事后很少系统复盘
+
+### 1.2 标的范围
+- A 股个股（沪、深、北交所）
+- 场内 ETF（含 LOF）
+- 板块：行业板块、概念板块（以板块指数形式参与行情展示、判断与验证）
+- 大盘指数
+
+所有标的统一抽象为 `Instrument { code, name, type: stock|etf|index|sector, exchange }`，日记关联、判断、持仓都基于它。
+
+### 1.3 非目标（MVP 不做）
+- 不做下单 / 券商实盘对接（只记录交易，不执行交易）
+- 不提供投资建议，AI 分析仅为辅助参考（App 内需有免责声明）
+- 不做社区 / 分享
+- 不做港股、美股、期货（数据层预留扩展）
+
+---
+
+## 2. 功能概览
+
+| 模块 | MVP (Android v1) | 后续 |
+|---|---|---|
+| 大盘实时 | 主要指数、涨跌家数、成交额、板块热度、分时图 | 自选股、更多市场 |
+| AI 大盘分析 | 手动触发 + 定时（开盘/午间/收盘），结构化输出，可验证 | 自定义提示词、多模型对比 |
+| 日记记录 | 快捷输入、自动时点分条、行情快照、标签、模板 | 语音转写优化、图片 OCR |
+| 回溯与验证 | 判断结构化、到期自动判定、手动复盘、K 线上回放、修改历史 | 高级统计、导出报告 |
+| 持仓与交易 | 手动录入、图片识别、表格导入、持仓与盈亏计算、交易关联日记 | 多账户汇总、收益曲线对比基准 |
+| 平台 | Android | Windows 桌面 |
+| 数据 | 本地 SQLite + 导入导出 | 云同步、多端 |
+
+---
+
+## 3. 功能详细说明
+
+### 3.1 大盘看板（首页 Tab 1）
+
+**3.1.1 实时数据**
+- 指数卡片：上证指数、深证成指、创业板指、沪深 300、科创 50、北证 50（可配置顺序/显隐）
+  - 最新点位、涨跌幅、涨跌点、成交额
+  - 点击进入分时 / 日 K 详情
+- 市场宽度：上涨 / 下跌 / 平盘家数，涨停 / 跌停家数，炸板率
+- 两市总成交额，与昨日同时段对比（放量/缩量）
+- 板块热度：行业 / 概念涨幅榜 Top 10 与跌幅榜 Top 10，点击进入板块详情（板块指数走势 + 成分股涨跌）
+- ETF：热门 / 自选 ETF 行情，含成交额与溢价率（数据源支持时）
+- 自选列表：个股、ETF、板块混合自选
+- 刷新策略：交易时段内前台每 5 秒（可配置 3–30 秒）；非交易时段停止轮询，显示收盘数据
+- 交易日历：内置 A 股交易日历（节假日休市），用于判断是否交易日及 T+N 计算
+
+**3.1.2 AI 大盘分析**
+- 触发方式：
+  - 手动：看板上“AI 分析”按钮
+  - 定时（可开关）：9:35（开盘后）、11:35（午间）、15:05（收盘）
+- 输入：当前指数数据、市场宽度、成交额对比、板块排行、近 N 日指数 K 线摘要、（可选）用户最近日记中的观点
+- 输出（要求模型返回 JSON，App 渲染为卡片）：
+  ```json
+  {
+    "sentiment_score": 62,          // 0-100 市场情绪
+    "trend": "震荡偏强",            // 强势上涨/震荡偏强/震荡/震荡偏弱/弱势下跌
+    "key_levels": {"support": [3280, 3250], "resistance": [3350]},
+    "highlights": ["成交额较昨日放大 12%", "半导体领涨"],
+    "risks": ["高位股炸板率上升"],
+    "outlook": {"horizon": "T+1", "direction": "up", "confidence": 0.6},
+    "summary": "一段 100 字以内的总结"
+  }
+  ```
+- **AI 判断也可验证**：`outlook` 字段自动生成一条“AI 判断”记录，与用户判断走同一套验证流程，可在统计里对比“我 vs AI”准确率
+- 历史分析列表可查看、可一键引用到日记
+- 模型配置：设置页填写 API Key，**默认 DeepSeek**（`deepseek-chat`，可切换 `deepseek-reasoner`）
+  - 内置预设：DeepSeek、通义千问、Kimi、智谱 GLM、Anthropic Claude、OpenAI
+  - 自定义：任意 OpenAI 兼容接口（base URL + model + key）
+  - 可为不同任务分别指定模型：大盘分析 / 图片识别（需支持视觉的模型）/ 表格字段映射
+- 失败处理：网络/Key 错误时提示，不阻塞看板
+
+### 3.2 日记记录（Tab 2，核心）
+
+**3.2.1 数据结构：日 → 时段 → 条目**
+- 每个交易日一页“日记本”
+- 条目按 **交易时段自动分组**（自动时点分条）：
+
+  | 时段 | 时间 |
+  |---|---|
+  | 盘前 | 00:00 – 09:15 |
+  | 集合竞价 | 09:15 – 09:30 |
+  | 早盘 | 09:30 – 11:30 |
+  | 午间 | 11:30 – 13:00 |
+  | 午盘 | 13:00 – 14:57 |
+  | 尾盘 | 14:57 – 15:00 |
+  | 盘后 | 15:00 – 24:00 |
+
+  非交易日的记录归入“周末/假日复盘”，并关联到下一个交易日。
+- 每条条目自动带：精确时间戳、所属时段、**当时的行情快照**（主要指数点位/涨跌幅、成交额、涨跌家数；若关联个股则加个股价格）
+
+**3.2.2 快捷输入**
+- 首页常驻悬浮按钮 + 桌面小组件（Widget）+ 通知栏快捷入口，**一步打开输入框**
+- 输入框为单行起步、可展开；回车即保存为一条（连续回车 = 连续分条）
+- 快捷要素（输入框上方一排 Chip，点选即加入）：
+  - 观点：看多 / 看空 / 观望
+  - 动作：买入 / 卖出 / 加仓 / 减仓 / 空仓 / 持有
+  - 情绪：冷静 / 犹豫 / FOMO / 恐慌 / 贪婪（用于后续情绪 vs 胜率分析）
+  - 自定义常用短语（设置中管理，如“放量突破”“缩量回调”“冲高回落”）
+- 行内语法（可选，熟手用）：
+  - `$600519` 或 `$茅台` → 关联股票（代码/拼音/名称联想）
+  - `#标签` → 标签
+  - `>3350 T+1` → 快速创建可验证判断（见 3.3）
+- 语音输入：调用系统语音识别转文字
+- 图片：可附截图（K 线、盘口），本地存储
+- 模板：盘前计划模板、盘后复盘模板（可自定义字段）
+- 编辑：条目与判断**均可事后修改**，每次修改生成一条修改记录（修改前快照、修改时间、修改字段），可查看历史版本与差异
+  - 条目上显示“已修改 N 次”标记
+  - 判断若在**到期前被修改**，标记为“已修改判断”；统计页可切换“按原始判断统计 / 按最终判断统计 / 排除修改过的判断”，保证复盘诚实
+
+**3.2.3 浏览**
+- 日视图：时间轴形式展示当天所有条目，每条旁显示快照中的指数涨跌
+- 日历视图：月历，每天用颜色标示当日判断准确率 / 盈亏
+- 搜索：全文 + 标签 + 股票 + 观点 + 结果过滤
+
+### 3.3 回溯与验证（Tab 3）
+
+**3.3.1 可验证判断（Prediction）**
+条目可附 0..N 个判断，结构化字段：
+
+| 字段 | 说明 | 示例 |
+|---|---|---|
+| 标的 | 指数 / 个股 / ETF / 板块 | 上证指数 / 600519 / 510300 / 半导体板块 |
+| 方向 | 上涨 / 下跌 / 震荡 | 上涨 |
+| 周期 | 当日收盘 / T+1 / T+3 / T+5 / 自定义日期 | T+1 |
+| 目标价（可选） | 达到即正确 | 3350 |
+| 止损/失效价（可选） | 触及即错误 | 3280 |
+| 震荡区间（方向=震荡时） | 上下界 | 3280–3350 |
+| 信心度 | 1–5 | 3 |
+
+基准价 = 创建时的快照价格。
+
+**3.3.2 自动判定规则**
+到期后（到期交易日收盘后 15:30 起）由后台任务拉取行情并判定：
+- 仅方向：到期收盘价 vs 基准价，变动幅度超过阈值算对应方向，阈值内算“震荡”
+- **阈值多级可调**，优先级：单条判断覆盖 > 标的类型默认 > 全局默认
+  - 默认值：指数 ±0.3%、板块 ±0.5%、ETF ±0.5%、个股 ±1.0%；也可按周期（T+1 / T+5）分别设置
+  - 修改全局阈值后可选择“仅影响新判断”或“重新判定历史”（重新判定会记录 `rule_version`）
+- 有目标价/止损价：用周期内日 K 的最高/最低价判断**先触及哪个**（同日都触及则标为“不确定”，需手动判定）
+- 结果：✅ 正确 / ❌ 错误 / ➖ 部分（方向对但未达目标）/ ❓ 待手动
+- 记录实际涨跌幅、最大有利/不利波动（MFE/MAE）
+- 用户可覆盖自动结果，但会标记“手动修改”
+
+**3.3.3 复盘**
+- 到期的判断进入“待复盘”队列，通知提醒
+- 复盘时并排展示：当时的原文 + 当时快照 + 实际走势小图 + 自动结果
+- 可写复盘笔记、标记原因（如“逻辑对但时机错”“情绪化”“消息面突变”）
+
+**3.3.4 K 线回放**
+- 在指数/个股日 K 或分时图上，用标记点展示历史日记条目和判断；点击标记查看原文
+- 时间轴拖动回放某一天：分时图 + 当天日记按时间逐条出现
+
+**3.3.5 统计**
+- 总体准确率、近 30 日趋势
+- 维度拆分：按观点、标的、周期、时段、情绪、信心度、标签
+- 信心度校准：信心 5 的判断是否真的比信心 2 准
+- 我 vs AI：同周期判断准确率对比
+
+### 3.4 持仓与交易（Tab 4）
+
+**3.4.1 交易记录**
+- 字段：账户、标的、方向（买入 / 卖出 / 分红 / 送转 / 申购等）、成交时间、价格、数量、金额、佣金、印花税、过户费、备注
+- 每笔交易可关联日记条目（“为什么买 / 为什么卖”），日记中记录买卖动作时可一键生成交易草稿
+- 支持多账户（如不同券商）
+
+**3.4.2 三种录入方式**
+1. **手动输入**：标的联想、价格默认填当前价、数量快捷按钮（100 / 500 / 1000 / 全部）、费用按账户费率自动计算
+2. **图片识别**：上传券商 App 成交记录 / 持仓截图
+   - 流程：端上 OCR（Google ML Kit 中文识别）提取文字 → LLM 结构化为交易 / 持仓 JSON →（若配置了视觉模型可直接走视觉模型）→ **预览确认页**逐条核对后入库
+3. **表格导入**：CSV / Excel（券商导出的交割单、成交明细）
+   - 自动识别常见券商格式；未知格式提供列映射界面（可让 AI 推荐映射），映射方案可保存复用
+   - 导入前去重（按时间 + 标的 + 价格 + 数量）
+
+**3.4.3 持仓与盈亏**
+- 由交易流水推导持仓（也支持直接导入 / 录入持仓快照用于初始化与对账）
+- 成本算法：摊薄成本（默认）/ 移动加权平均，可切换
+- 指标：持仓市值、浮动盈亏、当日盈亏、已实现盈亏、仓位占比、持有天数
+- 统计：每笔交易结果、胜率、盈亏比、按标的 / 板块 / 月份汇总；与日记情绪、观点交叉分析（如“FOMO 状态下买入的胜率”）
+- 交易与持仓也可修改，同样保留修改历史
+
+---
+
+## 4. 非功能需求
+
+- **离线优先**：所有日记本地可用，无网络时可记录（快照标记为“缺失”，联网后可补拉当时价格）
+- **快**：冷启动到可输入 < 1.5 s；从 Widget 点击到可输入 < 1 s
+- **隐私**：数据默认仅存本地；API Key 存 Android Keystore 加密
+- **备份**：一键导出 / 导入（JSON + 图片打包 zip），支持导出 Markdown
+- **省电**：后台仅在交易日定时唤醒（WorkManager），不常驻轮询
+- **兼容**：Android 8.0 (API 26) 及以上；支持深色模式；A 股习惯红涨绿跌（可切换）
+
+---
+
+## 5. 技术方案
+
+### 5.1 技术选型（推荐）
+
+| 层 | 选型 | 理由 |
+|---|---|---|
+| 框架 | **Flutter 3.x (Dart)** | 一套代码覆盖 Android 与 Windows，满足“先安卓后 Win” |
+| 状态管理 | Riverpod | 可测试、适合异步数据流 |
+| 本地数据库 | Drift (SQLite) | 类型安全、支持迁移、跨平台 |
+| 图表 | fl_chart（分时/统计）+ 自绘 K 线组件或 k_chart | |
+| 网络 | dio | |
+| 后台任务 | workmanager | 定时 AI 分析、到期判定 |
+| 通知 | flutter_local_notifications | |
+| 桌面组件 | home_widget | Android Widget |
+| 安全存储 | flutter_secure_storage | API Key |
+
+备选：Kotlin Multiplatform + Compose Multiplatform（Android 原生体验更好，Windows 走 JVM 桌面）。若更看重安卓原生体验可切换，数据模型不变。
+
+### 5.2 架构
+
+```
+lib/
+  core/            交易日历、时段计算、常量、工具
+  data/
+    market/        行情数据源接口 + 实现（可插拔）
+    ai/            LLM Provider 接口 + Claude / OpenAI 兼容实现
+    db/            Drift 表定义、DAO
+    repo/          Repository 层（UI 只依赖这里）
+  domain/          判定引擎（纯 Dart，可单测）、统计计算
+  features/
+    market/        看板、AI 分析
+    journal/       日记、快捷输入
+    review/        验证、复盘、回放、统计
+    settings/
+  background/      WorkManager 任务
+```
+
+### 5.3 行情数据源（多源可插拔）
+- 定义 `MarketDataSource` 接口，按能力拆分：`QuoteProvider`（实时报价）、`KlineProvider`（日 K / 分钟线）、`BreadthProvider`（市场宽度）、`SectorProvider`（板块列表、成分、排行）、`InstrumentProvider`（代码表、ETF 列表）、`CalendarProvider`（交易日历）
+- 实现：
+  - **Tushare Pro**（用户填 token）：代码表、交易日历、日 K、复权因子、ETF 基础信息、行业 / 概念板块、每日指标 —— 作为历史数据与验证判定的**权威来源**
+  - **免费实时源**（新浪 / 腾讯 / 东方财富网页接口）：盘中实时报价、分时、涨跌家数、板块实时排行
+  - 后续可加：自建服务端代理、其他付费源
+- 设置页可为每种能力配置**数据源优先级**，失败自动 fallback；显示各源健康状态
+- Tushare 积分 / 频率限制：客户端做请求节流与本地缓存（代码表、交易日历每日更新一次，日 K 增量拉取）
+- ⚠️ 免费源为非官方接口，可能变更 → 适配层隔离，出错时降级到下一源
+
+### 5.4 AI 分析
+- `LlmProvider` 接口：`chat(messages, {json, images})`；上层用例：`analyzeMarket`、`parseTradeImage`、`suggestColumnMapping`
+- 实现：`OpenAiCompatibleProvider`（覆盖 DeepSeek / 通义 / Kimi / GLM / OpenAI / 自定义）+ `AnthropicProvider`
+- 提示词模板版本化存储（`prompt_version` 字段），便于比较不同版本提示词的准确率
+- 要求结构化 JSON 输出，解析失败时重试 1 次，仍失败则保存原文
+- 记录 token 用量，设置页展示
+
+### 5.5 数据模型（云同步就绪）
+
+所有表统一字段：`id TEXT (UUID v7)`、`created_at`、`updated_at`、`deleted_at`（软删除）、`device_id`。时间统一存 UTC 毫秒，展示按 Asia/Shanghai。
+
+```
+instrument       (code PK, name, type[stock|etf|index|sector], exchange, pinyin, list_date, extra[json])
+trading_day      (date PK, is_trading, note)
+journal_entry    (id, trade_date, session, ts, content, stance, action, emotion,
+                  tags[json], instrument_codes[json], snapshot_id, template_id, revision_count)
+market_snapshot  (id, ts, indices[json], breadth[json], turnover, extra[json], is_backfilled)
+prediction       (id, entry_id NULL, source[user|ai], analysis_id NULL,
+                  target_code, direction, horizon_type, due_date,
+                  base_price, target_price, stop_price, range_low, range_high,
+                  threshold_pct NULL, confidence, revision_count, modified_before_due)
+prediction_result(id, prediction_id, status[correct|wrong|partial|pending_manual],
+                  actual_close, change_pct, mfe, mae, decided_at, is_manual, rule_version)
+revision         (id, entity_type, entity_id, revision_no, before[json], changed_fields[json], ts)
+                  -- 通用修改历史，覆盖 journal_entry / prediction / trade / position_snapshot
+threshold_rule   (id, scope[global|type|horizon], instrument_type NULL, horizon_type NULL, pct)
+account          (id, name, broker, commission_rate, min_commission, stamp_tax_rate, transfer_fee_rate)
+trade            (id, account_id, instrument_code, side, ts, price, qty, amount,
+                  commission, stamp_tax, transfer_fee, entry_id NULL, source[manual|image|table],
+                  import_batch_id NULL, revision_count)
+position_snapshot(id, account_id, instrument_code, date, qty, cost_price, source)
+import_batch     (id, kind[image|table], file_name, mapping_id NULL, ts, row_count, status)
+column_mapping   (id, name, broker, mapping[json])
+review_note      (id, prediction_id NULL, entry_id NULL, content, reasons[json])
+ai_analysis      (id, ts, trigger[manual|scheduled], provider, model, prompt_version,
+                  input_digest, output[json], raw_text, tokens_in, tokens_out)
+attachment       (id, entry_id, local_path, mime, size)
+quick_phrase     (id, text, category, sort)
+template         (id, name, fields[json])
+kline_cache      (code, period, date, o, h, l, c, v, amount)   -- 非同步表
+```
+
+### 5.6 云同步预留（后续）
+- 本地优先 + 增量同步：基于 `updated_at` 的 last-write-wins；冲突时被覆盖的一方写入 `revision` 表，不丢数据
+- 后端候选：Supabase（Postgres + Auth）或自建；附件走对象存储
+- MVP 阶段不实现，仅保证 schema 与 ID 策略兼容
+
+---
+
+## 6. 页面清单（Android MVP）
+
+1. **大盘**：指数卡片、市场宽度、成交额、板块榜、AI 分析卡片
+2. **日记**：今日时间轴（按时段分组）、悬浮快捷输入、日历切换
+3. **复盘**：待复盘队列、历史判断列表、K 线回放、统计
+4. **持仓**：持仓列表与盈亏、交易流水、录入（手动 / 图片 / 表格）、导入预览确认
+5. **设置**：数据源与 Tushare token、源优先级、AI 模型与 Key、刷新频率、定时任务开关、常用短语、模板、判定阈值、账户与费率、红绿配色、导入导出、免责声明
+5. 全局：快捷输入弹层（Widget / 通知栏 / 悬浮按钮共用）
+
+---
+
+## 7. 里程碑
+
+| 阶段 | 内容 | 验收 |
+|---|---|---|
+| M0 | 项目脚手架、数据库、修改历史机制、交易日历、时段计算 | 单测通过 |
+| M1 | 日记：快捷输入、自动分条、标签/Chip、日视图、搜索、编辑与历史 | 可连续快速记录并按时段展示 |
+| M2 | 行情：Tushare + 免费实时源、多源 fallback、指数 / 板块 / ETF 看板、快照绑定 | 记录自动带快照 |
+| M3 | 判断与验证：结构化判断、多级阈值、判定引擎、后台到期判定、复盘队列 | 构造历史数据可正确判定 |
+| M4 | AI 分析：DeepSeek 等 Provider、结构化输出、定时任务、AI 判断入验证 | 三个定时点自动产出分析 |
+| M5 | 持仓与交易：手动录入、表格导入、图片识别、持仓盈亏 | 导入一份交割单后持仓与盈亏正确 |
+| M6 | 回放与统计、Widget、备份导入导出、打磨 | 发布 v1.0 APK |
+| 后续 | Windows 桌面端 → 云同步 | |
+
+---
+
+## 8. 决策记录（v0.2 已确认）
+
+| 问题 | 决定 |
+|---|---|
+| 标的范围 | A 股 + ETF + 板块（行业 / 概念）+ 指数 |
+| 技术栈 | Flutter + Riverpod + Drift，一套代码覆盖 Android / Windows（后续可扩 iOS / macOS） |
+| 数据源 | 多源可插拔；Tushare Pro（用户已有）为历史与判定权威源，免费源补盘中实时 |
+| AI 模型 | 默认 DeepSeek，可选其他预设或自定义 OpenAI 兼容接口 |
+| 持仓 / 交易 | 支持，手动 / 图片 / 表格三种录入 |
+| 判断锁定 | 不锁定，可事后修改，完整保留修改历史，统计可区分 |
+| 判定阈值 | 全局 / 标的类型 / 周期 / 单条四级可调 |
