@@ -52,3 +52,13 @@ String formatTradeDate(String tradeDate) {
   final d = TradeDate.parse(tradeDate);
   return '${d.year}年${d.month}月${d.day}日 ${_weekdays[d.weekday - 1]}';
 }
+
+/// 金额（元）→ `161,333.46`；[signed] 时正数带 `+`。
+String formatMoney(double? v, {bool signed = false, int digits = 2}) {
+  if (v == null) return '--';
+  final neg = v < 0;
+  final parts = v.abs().toStringAsFixed(digits).split('.');
+  final intPart = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+  final s = parts.length > 1 ? '$intPart.${parts[1]}' : intPart;
+  return neg ? '-$s' : (signed && v > 0 ? '+$s' : s);
+}

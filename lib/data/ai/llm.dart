@@ -104,15 +104,28 @@ class LlmConfig {
   final String? effort;
 }
 
+/// 随消息发送的图片（视觉模型）。
+class LlmImage {
+  const LlmImage(this.mime, this.bytes);
+  final String mime;
+  final List<int> bytes;
+  String get base64Data => base64Encode(bytes);
+}
+
 class LlmMessage {
-  const LlmMessage(this.role, this.content);
-  const LlmMessage.system(this.content) : role = 'system';
-  const LlmMessage.user(this.content) : role = 'user';
-  const LlmMessage.assistant(this.content) : role = 'assistant';
+  const LlmMessage(this.role, this.content, {this.images = const []});
+  const LlmMessage.system(this.content)
+      : role = 'system',
+        images = const [];
+  const LlmMessage.user(this.content, {this.images = const []}) : role = 'user';
+  const LlmMessage.assistant(this.content)
+      : role = 'assistant',
+        images = const [];
 
   /// system | user | assistant
   final String role;
   final String content;
+  final List<LlmImage> images;
 }
 
 class LlmResponse {
@@ -189,7 +202,22 @@ class OpenAiCompatibleProvider implements LlmProvider {
           options: Options(headers: {'Authorization': 'Bearer ${config.apiKey}'}),
           data: {
             'model': config.model,
-            'messages': [for (final m in messages) {'role': m.role, 'content': m.content}],
+            'messages': [
+              for (final m in messages)
+                {
+                  'role': m.role,
+                  'content': m.images.isEmpty
+                      ? m.content
+                      : [
+                          for (final img in m.images)
+                            {
+                              'type': 'image_url',
+                              'image_url': {'url': 'data:${img.mime};base64,${img.base64Data}'},
+                            },
+                          {'type': 'text', 'text': m.content},
+                        ],
+                },
+            ],
             // 思考内容也计入输出 token，开思考时放宽上限
             'max_tokens': config.effort == null ? maxTokens : (maxTokens < 32000 ? 32000 : maxTokens),
             'stream': false,
@@ -252,7 +280,20 @@ class AnthropicProvider implements LlmProvider {
           if (config.effort != null) 'output_config': {'effort': config.effort},
           'messages': [
             for (final m in messages)
-              if (m.role != 'system') {'role': m.role, 'content': m.content},
+              if (m.role != 'system')
+                {
+                  'role': m.role,
+                  'content': m.images.isEmpty
+                      ? m.content
+                      : [
+                          for (final img in m.images)
+                            {
+                              'type': 'image',
+                              'source': {'type': 'base64', 'media_type': img.mime, 'data': img.base64Data},
+                            },
+                          {'type': 'text', 'text': m.content},
+                        ],
+                },
           ],
         },
       );

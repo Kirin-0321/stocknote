@@ -24,6 +24,7 @@ class InstrumentRepository {
   InstrumentRepository(this._db);
 
   final AppDatabase _db;
+  AppDatabase get db => _db;
 
   Future<int> count() async {
     final c = _db.instruments.code.count();

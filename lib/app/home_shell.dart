@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import '../features/journal/journal_page.dart';
 import '../features/market/ai_analysis_widgets.dart';
 import '../features/market/market_page.dart';
+import '../features/portfolio/portfolio_page.dart';
 import '../features/review/review_page.dart';
 import '../features/review/review_providers.dart';
 import '../features/settings/settings_page.dart';
@@ -114,8 +115,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           _index == 0 ? const MarketPage() : const SizedBox.shrink(),
           JournalPage(onOpenAgent: _openAgent),
           const ReviewPage(),
-          const _PlaceholderPage(
-              title: '持仓', icon: Icons.account_balance_wallet, milestone: 'M5'),
+          const PortfolioPage(),
           const SettingsPage(),
         ],
       ),
@@ -141,29 +141,3 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 }
-
-class _PlaceholderPage extends StatelessWidget {
-  const _PlaceholderPage({required this.title, required this.icon, required this.milestone});
-  final String title;
-  final IconData icon;
-  final String milestone;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: theme.colorScheme.primary),
-            const SizedBox(height: 12),
-            Text('$milestone 开发中', style: theme.textTheme.bodyMedium),
-          ],
-        ),
-      ),
-    );
-  }
-}
-

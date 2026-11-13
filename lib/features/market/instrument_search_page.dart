@@ -8,7 +8,10 @@ import 'instrument_detail_page.dart';
 
 /// 标的搜索：代码 / 名称 / 拼音首字母。需要先同步代码表。
 class InstrumentSearchPage extends ConsumerStatefulWidget {
-  const InstrumentSearchPage({super.key});
+  const InstrumentSearchPage({super.key, this.pick = false});
+
+  /// 选择模式：点击后返回所选标的（[Instrument]）而不是打开详情
+  final bool pick;
 
   @override
   ConsumerState<InstrumentSearchPage> createState() => _InstrumentSearchPageState();
@@ -62,8 +65,10 @@ class _InstrumentSearchPageState extends ConsumerState<InstrumentSearchPage> {
                   subtitle: Text(r.code),
                   trailing: Text(InstrumentType.fromCode(r.type).label,
                       style: theme.textTheme.labelSmall),
-                  onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(
-                      builder: (_) => InstrumentDetailPage(code: r.code, name: r.name))),
+                  onTap: () => widget.pick
+                      ? Navigator.of(context).pop(r)
+                      : Navigator.of(context).pushReplacement(MaterialPageRoute(
+                          builder: (_) => InstrumentDetailPage(code: r.code, name: r.name))),
                 );
               },
             ),

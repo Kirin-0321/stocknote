@@ -18,7 +18,9 @@ import '../data/market/sources.dart';
 import '../data/market/tencent_source.dart';
 import '../data/market/tushare_source.dart';
 import '../data/repo/ai_analysis_repository.dart';
+import '../data/import/import_service.dart';
 import '../data/repo/calendar_repository.dart';
+import '../data/repo/trade_repository.dart';
 import '../data/repo/instrument_repository.dart';
 import '../data/repo/journal_repository.dart';
 import '../data/repo/market_snapshot_repository.dart';
@@ -305,6 +307,27 @@ final marketAnalysisServiceProvider = Provider((ref) {
     },
   );
 });
+
+// ───────────── 持仓与交易（M5） ─────────────
+
+final accountRepositoryProvider =
+    Provider((ref) => AccountRepository(ref.watch(databaseProvider), now: ref.watch(clockProvider)));
+
+final tradeRepositoryProvider =
+    Provider((ref) => TradeRepository(ref.watch(databaseProvider), now: ref.watch(clockProvider)));
+
+final columnMappingRepositoryProvider =
+    Provider((ref) => ColumnMappingRepository(ref.watch(databaseProvider), now: ref.watch(clockProvider)));
+
+final tradeImportServiceProvider = Provider((ref) => TradeImportService(
+      trades: ref.watch(tradeRepositoryProvider),
+      mappings: ref.watch(columnMappingRepositoryProvider),
+      instruments: ref.watch(instrumentRepositoryProvider),
+      market: ref.watch(marketServiceProvider),
+      aiConfig: ref.watch(aiConfigRepositoryProvider),
+      llmFactory: ref.watch(llmFactoryProvider),
+      now: ref.watch(clockProvider),
+    ));
 
 /// 执行基础数据同步并刷新内存中的交易日历。
 Future<SyncResult> runBaseDataSync(WidgetRef ref, {bool force = false}) async {

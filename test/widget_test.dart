@@ -11,6 +11,8 @@ import 'package:stocknote/data/db/app_database.dart';
 import 'package:stocknote/data/market/models.dart';
 import 'package:stocknote/data/market/sources.dart';
 import 'package:stocknote/data/repo/instrument_repository.dart';
+import 'package:stocknote/data/repo/trade_repository.dart';
+import 'package:stocknote/domain/trade/trade_rules.dart';
 import 'package:stocknote/features/journal/widgets/composer_toolbar.dart';
 import 'package:stocknote/features/market/market_page.dart';
 import 'package:stocknote/features/review/prediction_detail_page.dart';
@@ -270,6 +272,43 @@ void main() {
     await tester.tap(find.text('日记').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('AI 分析（震荡偏强，情绪 62）'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('持仓：交易推导持仓与盈亏，修改交易保留历史', (tester) async {
+    source.quoteOverride = (c) => switch (c) {
+          '600000.SH' => const Quote(code: '600000.SH', name: '浦发银行', price: 11, preClose: 10.5),
+          _ => FakeSource.quote(c, 100, 100),
+        };
+    await tester.runAsync(() async {
+      await InstrumentRepository(db).upsertAll(const [
+        InstrumentInfo(code: '600000.SH', name: '浦发银行', type: InstrumentType.stock),
+      ]);
+      final account = await AccountRepository(db).ensureDefault();
+      await TradeRepository(db).add(TradeDraft(
+          accountId: account.id, code: '600000.SH', side: TradeSide.buy,
+          ts: MarketClock.fromMarket(2026, 11, 10, 10, 0).millisecondsSinceEpoch, price: 10, qty: 1000));
+    });
+    await pumpApp(tester);
+    await tester.tap(find.text('持仓').last);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pumpAndSettle();
+    expect(find.text('浦发银行'), findsOneWidget);
+    expect(find.text('+1,000.00'), findsNWidgets(2)); // 浮动盈亏：总览 + 持仓
+    expect(find.text('当日 +500.00'), findsOneWidget);
+    expect(find.text('11,000.00'), findsOneWidget); // 总览市值
+    expect(find.text('市值 11,000.00'), findsOneWidget);
+
+    await tester.tap(find.text('浦发银行'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('10.00 × 1000'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('trade-qty')), '800');
+    await tester.tap(find.byKey(const Key('trade-save')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('改过 1 次'), findsOneWidget);
+    expect(find.textContaining('持仓 800'), findsOneWidget);
     await disposeApp(tester);
   });
 
