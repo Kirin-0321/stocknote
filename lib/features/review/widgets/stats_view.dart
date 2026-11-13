@@ -22,7 +22,11 @@ class _StatsViewState extends State<StatsView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final s = PredictionStats.compute(widget.views, excludeModified: _excludeModified);
+    // 主统计只看自己的判断；AI 判断单独对比
+    final mine = widget.views.where((v) => v.prediction.source == 'user').toList();
+    final ai = widget.views.where((v) => v.prediction.source == 'ai').toList();
+    final s = PredictionStats.compute(mine, excludeModified: _excludeModified);
+    final aiStats = PredictionStats.compute(ai);
     final o = s.overall;
     String pct(double v) => '${(v * 100).toStringAsFixed(0)}%';
 
@@ -69,6 +73,8 @@ class _StatsViewState extends State<StatsView> {
           ]),
         ),
       ),
+      if (aiStats.overall.decided > 0)
+        _Breakdown(title: '我 vs AI', keepOrder: true, buckets: {'我': s.overall, 'AI': aiStats.overall}),
       _Breakdown(title: '按验证时点', keepOrder: true, buckets: {
         for (final cp in Checkpoint.values)
           cp.label: ?s.byCheckpoint[cp],

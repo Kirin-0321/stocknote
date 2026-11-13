@@ -80,6 +80,10 @@ class PredictionCard extends StatelessWidget {
                 child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
               ),
               const SizedBox(width: 6),
+              if (p.source == 'ai') ...[
+                Pill('AI', color: theme.colorScheme.tertiary, icon: Icons.auto_awesome),
+                const SizedBox(width: 4),
+              ],
               Pill(directionLabels[p.direction] ?? p.direction, color: dirColor),
               const SizedBox(width: 4),
               Pill(horizonLabels[p.horizonType] ?? p.horizonType, color: theme.colorScheme.primary),
@@ -113,6 +117,7 @@ class PredictionCard extends StatelessWidget {
             const SizedBox(height: 4),
             Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
               if (view.entry != null) Text(formatDateTime(view.entry!.ts), style: muted),
+              if (view.entry == null && p.source == 'ai') Text('AI 分析 · ${formatDateTime(p.createdAt)}', style: muted),
               if (p.basePrice != null)
                 Text('基准 ${formatPrice(p.basePrice)}${r?.actualClose == null ? '' : ' → ${formatPrice(r!.actualClose)}'}',
                     style: muted),

@@ -2,15 +2,22 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/calendar/trading_calendar.dart';
+import '../data/ai/ai_settings.dart';
+import '../data/ai/llm.dart';
+import '../data/ai/market_analysis_service.dart';
 import '../data/db/app_database.dart';
 import '../data/market/eastmoney_source.dart';
 import '../data/market/http.dart';
+import '../data/market/models.dart';
+import '../core/time/market_clock.dart';
+import '../core/time/trading_session.dart';
 import '../data/market/market_router.dart';
 import '../data/market/market_service.dart';
 import '../data/market/snapshot_service.dart';
 import '../data/market/sources.dart';
 import '../data/market/tencent_source.dart';
 import '../data/market/tushare_source.dart';
+import '../data/repo/ai_analysis_repository.dart';
 import '../data/repo/calendar_repository.dart';
 import '../data/repo/instrument_repository.dart';
 import '../data/repo/journal_repository.dart';
@@ -249,6 +256,55 @@ final verificationServiceProvider = Provider((ref) => VerificationService(
       calendar: ref.watch(tradingCalendarProvider),
       thresholds: () => ref.read(thresholdConfigProvider.future),
     ));
+
+// ───────────── AI（M4） ─────────────
+
+final aiConfigRepositoryProvider = Provider(
+    (ref) => AiConfigRepository(ref.watch(settingsStoreProvider), ref.watch(secretStoreProvider)));
+
+/// AI 设置（非敏感部分）。设置页修改后 invalidate。
+final aiSettingsProvider = FutureProvider<AiSettings>((ref) => ref.watch(aiConfigRepositoryProvider).load());
+
+/// 大盘分析是否已配置可用的模型 Key。
+final aiAnalysisReadyProvider = FutureProvider<bool>((ref) async {
+  final s = await ref.watch(aiSettingsProvider.future);
+  return await ref.watch(aiConfigRepositoryProvider).configFor(AiTask.analysis, settings: s) != null;
+});
+
+/// 模型客户端工厂（测试中替换为假模型）。
+final llmFactoryProvider = Provider<LlmProvider Function(LlmConfig)>((ref) => LlmProvider.of);
+
+final aiAnalysisRepositoryProvider =
+    Provider((ref) => AiAnalysisRepository(ref.watch(databaseProvider), now: ref.watch(clockProvider)));
+
+final marketAnalysisServiceProvider = Provider((ref) {
+  final market = ref.watch(marketServiceProvider);
+  return MarketAnalysisService(
+    config: ref.watch(aiConfigRepositoryProvider),
+    repo: ref.watch(aiAnalysisRepositoryProvider),
+    predictions: ref.watch(predictionRepositoryProvider),
+    journal: ref.watch(journalRepositoryProvider),
+    market: market,
+    calendar: ref.watch(tradingCalendarProvider),
+    settings: ref.watch(settingsStoreProvider),
+    now: ref.watch(clockProvider),
+    providerFactory: ref.watch(llmFactoryProvider),
+    overview: () async {
+      final latest = ref.read(latestOverviewProvider);
+      final now = ref.read(clockProvider)();
+      if (latest != null && now.difference(latest.fetchedAt).inMinutes < 2) return latest;
+      final cal = ref.read(tradingCalendarProvider);
+      final loc = cal.locate(now);
+      final date = cal.isTradingDay(loc.tradeDate) &&
+              MarketClock.marketDate(now) == loc.tradeDate &&
+              loc.session != TradingSession.preMarket
+          ? loc.tradeDate
+          : cal.previous(MarketClock.marketDate(now));
+      final codes = {...defaultBoardIndices, ...ref.read(appConfigProvider).watchlist}.toList();
+      return market.overview(codes, TradeDate.format(date));
+    },
+  );
+});
 
 /// 执行基础数据同步并刷新内存中的交易日历。
 Future<SyncResult> runBaseDataSync(WidgetRef ref, {bool force = false}) async {

@@ -150,6 +150,39 @@ class PredictionRepository {
     return _applyUpdate(existing, next, userEdit: true);
   }
 
+  /// AI 分析的 outlook 生成一条 AI 判断（spec 3.1.2），与用户判断走同一套验证。
+  Future<Prediction> createAi({
+    required String analysisId,
+    required String targetCode,
+    required String direction,
+    required String horizon,
+    double? basePrice,
+    int confidence = 3,
+  }) async {
+    final loc = _calendar.locate(_now());
+    final plan = CheckpointPlan.of(_calendar, loc.tradeDate, loc.session, horizon);
+    final id = newId();
+    await _db.into(_db.predictions).insert(PredictionsCompanion.insert(
+          id: id,
+          createdAt: _ms,
+          updatedAt: _ms,
+          deviceId: await _db.deviceId(),
+          source: 'ai',
+          analysisId: Value(analysisId),
+          targetCode: targetCode,
+          direction: direction,
+          horizonType: horizon,
+          dueDate: TradeDate.format(plan.primaryDate),
+          basePrice: Value(basePrice),
+          confidence: Value(confidence),
+        ));
+    return (await get(id))!;
+  }
+
+  Future<Prediction?> forAnalysis(String analysisId) => (_db.select(_db.predictions)
+        ..where((p) => p.analysisId.equals(analysisId) & p.deletedAt.isNull()))
+      .getSingleOrNull();
+
   static double? _priceFromSnapshot(MarketSnapshot? s, String code) {
     if (s == null) return null;
     final q = s.indices[code] ?? (s.extra?['instruments'] as Map?)?[code];

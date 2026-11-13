@@ -11,6 +11,7 @@ import '../../data/market/models.dart';
 import '../../data/repo/prediction_repository.dart';
 import '../../domain/verify/stats.dart';
 import '../../domain/verify/verifier.dart';
+import '../market/ai_analysis_widgets.dart';
 import '../journal/widgets/highlighted_text.dart';
 import '../journal/widgets/snapshot_line.dart';
 import '../market/widgets/charts.dart';
@@ -78,6 +79,16 @@ class PredictionDetailPage extends ConsumerWidget {
               SnapshotLine(entry: v.entry!),
             ]),
           ),
+        if (v.entry == null && p.analysisId != null)
+          BoardCard(
+            title: 'AI 分析 · ${formatDateTime(p.createdAt)}',
+            trailing: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => AnalysisDetailPage(analysisId: p.analysisId!))),
+              child: const Text('查看分析'),
+            ),
+            child: const SizedBox.shrink(),
+          ),
         _ResultCard(view: v),
         BoardCard(
           title: '走势（● 记录日 / 到期日）',
@@ -92,7 +103,7 @@ class PredictionDetailPage extends ConsumerWidget {
           ),
         ),
         _ParamsCard(prediction: p),
-        _ReviewCard(view: v),
+        if (p.source == 'user') _ReviewCard(view: v),
       ]),
     );
   }

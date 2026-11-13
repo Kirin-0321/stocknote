@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'ai_settings_page.dart';
 import 'data_source_page.dart';
 import 'quick_phrases_page.dart';
 import 'threshold_page.dart';
@@ -10,7 +11,6 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = TextStyle(color: Theme.of(context).colorScheme.outline);
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(children: [
@@ -42,9 +42,11 @@ class SettingsPage extends StatelessWidget {
         ),
         ListTile(
           leading: const Icon(Icons.auto_awesome_outlined),
-          title: const Text('AI 模型（默认 DeepSeek）'),
-          subtitle: Text('M4 开放', style: muted),
-          enabled: false,
+          title: const Text('AI 模型'),
+          subtitle: const Text('默认 DeepSeek，各任务可选模型与思考强度，定时分析'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const AiSettingsPage())),
         ),
         const _Section('关于'),
         const ListTile(

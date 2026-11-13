@@ -55,7 +55,8 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
     final names = ref.watch(targetNamesProvider).value ?? const {};
     final repo = ref.watch(predictionRepositoryProvider);
     final list = views.value ?? const <PredictionView>[];
-    final toReview = list.where((v) => v.verified && !v.reviewed).toList()
+    // AI 判断不需要写复盘，只参与验证与统计
+    final toReview = list.where((v) => v.prediction.source == 'user' && v.verified && !v.reviewed).toList()
       ..sort((a, b) => b.prediction.dueDate.compareTo(a.prediction.dueDate));
     final ongoing = list.where((v) => !v.verified).toList()
       ..sort((a, b) => a.prediction.dueDate.compareTo(b.prediction.dueDate));

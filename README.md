@@ -12,7 +12,9 @@
   每条日记保存当时的行情快照，可修改并保留修改历史。
 - **判断验证与复盘**：判断类日记自动生成判断，在当日收盘 / 次日开盘 / 次日收盘 / T+3 / T+5（中期加 T+20）
   多个时点判定对错；阈值按标的类型和周期可调；复盘笔记与准确率统计。
-- 规划中：AI 大盘分析（默认 DeepSeek）、持仓与交易记录、全局 Agent 助手、云同步。详见 [docs/SPEC.md](docs/SPEC.md)。
+- **AI 大盘分析**：默认 DeepSeek（deepseek-flash，思考 max），也可选通义、Kimi、GLM、Claude、OpenAI 或任意 OpenAI 兼容接口；
+  结构化输出趋势 / 情绪 / 支撑压力 / 要点 / 风险 / 展望，展望自动生成 AI 判断参与验证，可对比"我 vs AI"准确率；交易日定时分析。
+- 规划中：持仓与交易记录、全局 Agent 助手、云同步。详见 [docs/SPEC.md](docs/SPEC.md)。
 
 ## 技术栈
 
@@ -28,7 +30,7 @@ Flutter（Android 优先，Windows 次之）· Riverpod · Drift (SQLite)。
 flutter pub get
 ```
 
-Tushare token 可以在 App 的「设置 → 数据源」中填写；开发时也可以写进项目根目录的 `.env`（已被 gitignore），参照 `.env.example`：
+Tushare token 在「设置 → 数据源」填写，AI 模型 Key 在「设置 → AI 模型」填写；开发时也可以写进项目根目录的 `.env`（已被 gitignore），参照 `.env.example`：
 
 ```bash
 flutter run --dart-define-from-file=.env
@@ -42,7 +44,7 @@ flutter run --dart-define-from-file=.env
 flutter test --exclude-tags live
 ```
 
-`test/live` 下的用例会请求真实接口，需要设置环境变量 `TUSHARE_TOKEN`。
+`test/live` 下的用例会请求真实接口，需要设置环境变量 `TUSHARE_TOKEN`（AI 用例另需 `DEEPSEEK_API_KEY`）。
 
 ## License
 

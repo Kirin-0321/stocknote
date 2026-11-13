@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../features/journal/journal_page.dart';
+import '../features/market/ai_analysis_widgets.dart';
 import '../features/market/market_page.dart';
 import '../features/review/review_page.dart';
 import '../features/review/review_providers.dart';
@@ -40,10 +41,12 @@ const _journalIndex = 1;
 class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = _journalIndex;
   Timer? _verifyTimer;
+  Timer? _analysisTimer;
 
   @override
   void dispose() {
     _verifyTimer?.cancel();
+    _analysisTimer?.cancel();
     super.dispose();
   }
 
@@ -58,6 +61,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         // 网络不可用时下次再试
       }
     });
+    // 定时 AI 分析：交易日 9:35 / 11:35 / 15:05（应用打开时；后台定时在 M7）
+    _analysisTimer = Timer.periodic(const Duration(minutes: 1), (_) => _scheduledAnalysis());
     // 启动后在后台同步交易日历与代码表（每天一次）
     Future.microtask(() async {
       try {
@@ -68,7 +73,22 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       } catch (_) {
         // 离线或源不可用：下次启动再试
       }
+      await _scheduledAnalysis();
     });
+  }
+
+  Future<void> _scheduledAnalysis() async {
+    if (ref.read(analysisRunningProvider)) return;
+    final svc = ref.read(marketAnalysisServiceProvider);
+    if (svc.dueSlot() == null) return;
+    ref.read(analysisRunningProvider.notifier).set(true);
+    try {
+      await svc.runScheduledIfDue();
+    } catch (_) {
+      // 失败不阻塞；该时点不再重试
+    } finally {
+      if (mounted) ref.read(analysisRunningProvider.notifier).set(false);
+    }
   }
 
   /// 复盘 Tab 显示待复盘数量。

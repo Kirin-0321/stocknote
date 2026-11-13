@@ -10,7 +10,7 @@ final predictionViewsProvider = StreamProvider<List<PredictionView>>(
 /// 待复盘数量（复盘 Tab 角标）。
 final pendingReviewCountProvider = Provider<int>((ref) {
   final list = ref.watch(predictionViewsProvider).value ?? const [];
-  return list.where((v) => v.verified && !v.reviewed).length;
+  return list.where((v) => v.prediction.source == 'user' && v.verified && !v.reviewed).length;
 });
 
 /// 判断目标代码 → 显示名称。

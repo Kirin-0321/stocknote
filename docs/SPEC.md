@@ -86,11 +86,18 @@
   ```
 - **AI 判断也可验证**：`outlook` 字段自动生成一条“AI 判断”记录，与用户判断走同一套验证流程，可在统计里对比“我 vs AI”准确率
 - 历史分析列表可查看、可一键引用到日记
-- 模型配置：设置页填写 API Key，**默认 DeepSeek**（`deepseek-chat`，可切换 `deepseek-reasoner`）；各任务（大盘分析 / Agent / 图片识别 / 表格映射）可分别选模型
+- 模型配置：设置页填写 API Key，**默认 DeepSeek**（`deepseek-flash`，思考 max；可切换 `deepseek-v4-pro`）；各任务（大盘分析 / Agent / 图片识别 / 表格映射）可分别选模型
   - 内置预设：DeepSeek、通义千问、Kimi、智谱 GLM、Anthropic Claude、OpenAI
   - 自定义：任意 OpenAI 兼容接口（base URL + model + key）
   - 可为不同任务分别指定模型：大盘分析 / 图片识别（需支持视觉的模型）/ 表格字段映射
 - 失败处理：网络/Key 错误时提示，不阻塞看板
+- 已实现（M4）：
+  - 默认模型 DeepSeek `deepseek-flash`，思考强度 max（OpenAI 兼容接口传 `reasoning_effort`；Anthropic 传 `output_config.effort`）；每个任务可分别选提供方 / 模型 / 思考强度
+  - Key 存系统安全存储，每个提供方一个；开发构建可从 `.env` 的 `DEEPSEEK_API_KEY` 注入
+  - 输入：看板指数、涨跌家数、涨跌停与炸板、成交额对比、行业 / 概念涨跌前列、热门 ETF、上证近 20 日日 K，以及（可关）近两个交易日的日记
+  - 看板"AI 分析"卡片：趋势、情绪分、总结、展望（含验证状态）、支撑 / 压力；详情页有要点、风险、原始输入输出、引用到日记（写成"观察 · 盘面"）
+  - outlook 生成 AI 判断（source=ai，目标默认上证），走同一套多时点验证；AI 判断不进"待复盘"，统计页有"我 vs AI"
+  - 定时：交易日 9:35 / 11:35 / 15:05，应用打开期间每分钟检查，每个时点 60 分钟内有效、只执行一次；后台定时（WorkManager）放到 M7
 
 ### 3.2 日记记录（Tab 2，核心）
 

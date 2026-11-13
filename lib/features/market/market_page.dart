@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../core/format.dart';
 import '../../data/market/market_service.dart';
 import '../../data/market/models.dart';
+import 'ai_analysis_widgets.dart';
 import 'instrument_detail_page.dart';
 import 'instrument_search_page.dart';
 import 'market_providers.dart';
@@ -160,6 +161,8 @@ class _Board extends ConsumerWidget {
             ),
           ]),
         ),
+
+        AiAnalysisCard(data: data),
 
         if (watchlist.isNotEmpty)
           BoardCard(

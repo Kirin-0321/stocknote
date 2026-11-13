@@ -58,6 +58,10 @@ class SettingsStore {
       .into(_db.appMeta)
       .insertOnConflictUpdate(AppMetaCompanion.insert(key: key, value: value));
 
+  /// 供其他模块存取自有配置（JSON 字符串）。
+  Future<String?> raw(String key) => _get(key);
+  Future<void> setRaw(String key, String value) => _set(key, value);
+
   /// 指数刷新间隔（秒），交易时段内使用。默认 5 秒。
   Future<int> refreshSeconds() async => int.tryParse(await _get(_refreshKey) ?? '') ?? 5;
   Future<void> setRefreshSeconds(int s) => _set(_refreshKey, '${s.clamp(3, 60)}');

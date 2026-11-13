@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:stocknote/app/app.dart';
@@ -20,6 +21,9 @@ import 'package:stocknote/data/repo/quick_phrase_repository.dart';
 import 'package:stocknote/domain/journal/entry_class.dart';
 import 'package:stocknote/data/settings/settings_store.dart';
 
+import 'package:stocknote/data/ai/ai_settings.dart';
+
+import 'helpers/fake_llm.dart';
 import 'helpers/fake_market.dart';
 
 void main() {
@@ -37,7 +41,7 @@ void main() {
     ));
   });
 
-  Future<void> pumpApp(WidgetTester tester) async {
+  Future<void> pumpApp(WidgetTester tester, {List<Override> extra = const []}) async {
     await tester.runAsync(() => QuickPhraseRepository(db, now: () => clock).seedDefaultsIfNeeded());
     await tester.pumpWidget(ProviderScope(
       overrides: [
@@ -45,6 +49,7 @@ void main() {
         clockProvider.overrideWithValue(() => clockOverride ?? clock),
         secretStoreProvider.overrideWithValue(MemorySecretStore()),
         marketSourcesProvider.overrideWithValue([source]),
+        ...extra,
       ],
       child: const StockNoteApp(),
     ));
@@ -215,6 +220,56 @@ void main() {
     await tester.pumpAndSettle();
     final entry = (await tester.runAsync(() => db.select(db.journalEntries).getSingle()))!;
     expect(entry.instrumentCodes, ['512480.SH']);
+    await disposeApp(tester);
+  });
+
+  testWidgets('AI 分析：看板触发 → 卡片 → 详情引用到日记 → 复盘出现 AI 判断', (tester) async {
+    final llm = FakeLlm([validAnalysisJson]);
+    clockOverride = MarketClock.fromMarket(2026, 11, 13, 10, 40); // 不在定时分析时点内
+    addTearDown(() => clockOverride = null);
+    await pumpApp(tester, extra: [
+      aiConfigRepositoryProvider.overrideWith((ref) => AiConfigRepository(
+          ref.watch(settingsStoreProvider), ref.watch(secretStoreProvider),
+          envDeepseekKey: 'sk-test')),
+      llmFactoryProvider.overrideWithValue((_) => llm),
+    ]);
+    await tester.tap(find.text('大盘').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final scroll = find.descendant(of: find.byType(MarketPage), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.byKey(const Key('ai-run')), 200, scrollable: scroll);
+    await tester.pump();
+    expect(tester.widget<TextButton>(find.byKey(const Key('ai-run'))).onPressed, isNotNull, reason: 'Key 已配置');
+    await tester.tap(find.byKey(const Key('ai-run')));
+    for (var i = 0; i < 20 && find.text('偏强震荡').evaluate().isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    expect(llm.calls, hasLength(1));
+    expect(find.text('偏强震荡'), findsOneWidget);
+    expect(find.text('展望：上证指数 T+1 看多 · 信心 60%'), findsOneWidget);
+
+    await tester.tap(find.text('偏强震荡'));
+    await tester.pumpAndSettle();
+    expect(find.text('高位股分歧'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('ai-quote')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pump();
+    expect(find.textContaining('写入今天的日记'), findsOneWidget);
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('复盘').last);
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pumpAndSettle();
+    expect(find.text('待复盘 0'), findsOneWidget);
+    await tester.tap(find.text('进行中 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('AI'), findsOneWidget);
+    await tester.tap(find.text('日记').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('AI 分析（震荡偏强，情绪 62）'), findsOneWidget);
     await disposeApp(tester);
   });
 
