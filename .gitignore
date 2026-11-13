@@ -20,3 +20,12 @@ android/key.properties
 # Secrets
 .env
 
+
+# Server
+server/.venv/
+server/**/__pycache__/
+server/.pytest_cache/
+server/*.db*
+server/web/node_modules/
+server/web/dist/
+.claude/

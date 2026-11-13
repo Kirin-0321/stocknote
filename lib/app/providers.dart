@@ -32,6 +32,7 @@ import '../data/service/verification_service.dart';
 import '../domain/verify/threshold.dart';
 import '../data/settings/settings_store.dart';
 import '../data/sync/base_data_sync.dart';
+import '../data/sync/cloud_sync.dart';
 
 /// 数据库单例。在 main / 测试中通过 override 注入。
 final databaseProvider = Provider<AppDatabase>(
@@ -328,6 +329,94 @@ final tradeImportServiceProvider = Provider((ref) => TradeImportService(
       llmFactory: ref.watch(llmFactoryProvider),
       now: ref.watch(clockProvider),
     ));
+
+// ───────────── 云同步（M7） ─────────────
+
+final cloudSyncProvider = Provider((ref) => CloudSync(
+      db: ref.watch(databaseProvider),
+      settings: ref.watch(settingsStoreProvider),
+      secrets: ref.watch(secretStoreProvider),
+      now: ref.watch(clockProvider),
+    ));
+
+/// 同步状态（设置页与自动同步共用）。
+@immutable
+class SyncState {
+  const SyncState({this.user, this.syncing = false, this.lastSyncAt, this.error, this.lastResult});
+  final SyncUser? user;
+  final bool syncing;
+  final DateTime? lastSyncAt;
+  final String? error;
+
+  /// 上次同步：(推送, 拉取)
+  final (int, int)? lastResult;
+
+  SyncState copyWith({SyncUser? user, bool clearUser = false, bool? syncing, DateTime? lastSyncAt, String? error,
+          bool clearError = false, (int, int)? lastResult}) =>
+      SyncState(
+        user: clearUser ? null : (user ?? this.user),
+        syncing: syncing ?? this.syncing,
+        lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+        error: clearError ? null : (error ?? this.error),
+        lastResult: lastResult ?? this.lastResult,
+      );
+}
+
+class SyncNotifier extends Notifier<SyncState> {
+  @override
+  SyncState build() {
+    _load();
+    return const SyncState();
+  }
+
+  CloudSync get _sync => ref.read(cloudSyncProvider);
+
+  Future<void> _load() async {
+    final u = await _sync.user();
+    final last = await _sync.lastSyncAt();
+    state = state.copyWith(user: u, lastSyncAt: last);
+  }
+
+  Future<void> signedIn(SyncUser u) async {
+    state = state.copyWith(user: u, clearError: true);
+    await syncNow();
+  }
+
+  Future<void> logout() async {
+    await _sync.logout();
+    state = SyncState(lastSyncAt: state.lastSyncAt);
+  }
+
+  /// 立即同步；已在同步或未登录时忽略。返回错误信息。
+  Future<String?> syncNow() async {
+    if (state.syncing) return null;
+    if (state.user == null) {
+      // 启动时登录信息可能尚未加载
+      final u = await _sync.user();
+      if (u == null) return null;
+      state = state.copyWith(user: u);
+    }
+    state = state.copyWith(syncing: true, clearError: true);
+    try {
+      final r = await _sync.sync();
+      state = state.copyWith(syncing: false, lastSyncAt: await _sync.lastSyncAt(), lastResult: r);
+      return null;
+    } on SyncException catch (e) {
+      state = state.copyWith(syncing: false, error: e.message);
+      if (e.unauthorized) {
+        // 令牌失效（改密码 / 被停用）：退出，需重新登录
+        await _sync.logout();
+        state = state.copyWith(clearUser: true);
+      }
+      return e.message;
+    } catch (e) {
+      state = state.copyWith(syncing: false, error: '$e');
+      return '$e';
+    }
+  }
+}
+
+final syncProvider = NotifierProvider<SyncNotifier, SyncState>(SyncNotifier.new);
 
 /// 执行基础数据同步并刷新内存中的交易日历。
 Future<SyncResult> runBaseDataSync(WidgetRef ref, {bool force = false}) async {

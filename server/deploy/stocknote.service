@@ -1,0 +1,21 @@
+[Unit]
+Description=StockNote sync API
+After=network.target
+
+[Service]
+User=stocknote
+Group=stocknote
+WorkingDirectory=/opt/stocknote/server
+EnvironmentFile=/etc/stocknote/stocknote.env
+# SQLite 单写者：只用 1 个进程
+ExecStart=/opt/stocknote/venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8100 --proxy-headers --log-level warning
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/stocknote
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

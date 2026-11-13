@@ -43,11 +43,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = _journalIndex;
   Timer? _verifyTimer;
   Timer? _analysisTimer;
+  Timer? _syncTimer;
+  late final AppLifecycleListener _lifecycle;
 
   @override
   void dispose() {
     _verifyTimer?.cancel();
     _analysisTimer?.cancel();
+    _syncTimer?.cancel();
+    _lifecycle.dispose();
     super.dispose();
   }
 
@@ -62,6 +66,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         // 网络不可用时下次再试
       }
     });
+    // 云同步：每 3 分钟、回到前台时
+    _syncTimer = Timer.periodic(const Duration(minutes: 3), (_) => ref.read(syncProvider.notifier).syncNow());
+    _lifecycle = AppLifecycleListener(onResume: () => ref.read(syncProvider.notifier).syncNow());
     // 定时 AI 分析：交易日 9:35 / 11:35 / 15:05（应用打开时；后台定时在 M7）
     _analysisTimer = Timer.periodic(const Duration(minutes: 1), (_) => _scheduledAnalysis());
     // 启动后在后台同步交易日历与代码表（每天一次）
@@ -74,6 +81,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       } catch (_) {
         // 离线或源不可用：下次启动再试
       }
+      await ref.read(syncProvider.notifier).syncNow();
       await _scheduledAnalysis();
     });
   }

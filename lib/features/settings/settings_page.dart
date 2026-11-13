@@ -1,6 +1,10 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/providers.dart';
+
 import 'ai_settings_page.dart';
+import 'cloud_sync_page.dart';
 import 'data_source_page.dart';
 import 'quick_phrases_page.dart';
 import 'threshold_page.dart';
@@ -14,6 +18,8 @@ class SettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(children: [
+        const _Section('账户'),
+        const _SyncTile(),
         const _Section('日记'),
         ListTile(
           leading: const Icon(Icons.short_text),
@@ -72,4 +78,27 @@ class _Section extends StatelessWidget {
                 .labelLarge
                 ?.copyWith(color: Theme.of(context).colorScheme.primary)),
       );
+}
+
+class _SyncTile extends ConsumerWidget {
+  const _SyncTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(syncProvider);
+    return ListTile(
+      key: const Key('settings-sync'),
+      leading: Icon(s.user == null ? Icons.cloud_off_outlined : Icons.cloud_done_outlined),
+      title: Text(s.user == null ? '登录 / 注册' : (s.user!.displayName ?? s.user!.email)),
+      subtitle: Text(s.user == null
+          ? '登录后开启云同步，多设备共享数据'
+          : s.error != null
+              ? '同步失败：${s.error}'
+              : s.syncing
+                  ? '正在同步…'
+                  : '云同步已开启'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CloudSyncPage())),
+    );
+  }
 }
