@@ -33,7 +33,7 @@ App 端到端测试（会启动本地服务器）：在项目根目录运行 `fl
 SSH_KEY=~/.ssh/stocknote_deploy bash server/deploy/deploy.sh
 ```
 
-服务器上：nginx 监听 8443（自签证书，含域名与 IP），API 只监听 127.0.0.1:8100，数据在 `/var/lib/stocknote`，每天 3:30 备份。
+服务器上：nginx 监听 8443（自签证书，含域名与 IP；域名未备案前阿里云会按 SNI 拦截，只能用 IP 访问），API 只监听 127.0.0.1:8100，数据在 `/var/lib/stocknote`，每天 3:30 备份。
 脚本最后输出证书 SHA-256 指纹，填到 App「账户与云同步 → 服务器设置」或 `.env` 的 `SYNC_CERT_SHA256`。
 
 创建管理员（密码在终端交互输入）：
