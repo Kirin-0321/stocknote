@@ -53,6 +53,11 @@ class AiAnalysisRepository {
         ..limit(limit))
       .watch();
 
+  Future<List<AiAnalysis>> recent({int limit = 10}) => (_alive()
+        ..orderBy([(a) => OrderingTerm.desc(a.ts)])
+        ..limit(limit))
+      .get();
+
   Future<AiAnalysis?> get(String id) =>
       (_db.select(_db.aiAnalyses)..where((a) => a.id.equals(id))).getSingleOrNull();
 

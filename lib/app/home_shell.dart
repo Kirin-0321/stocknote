@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../features/journal/journal_page.dart';
+import '../features/agent/agent_chat_page.dart';
+import '../features/agent/agent_providers.dart';
+import '../features/journal/journal_providers.dart';
 import '../features/market/ai_analysis_widgets.dart';
 import '../features/market/market_page.dart';
 import '../features/portfolio/portfolio_page.dart';
@@ -107,10 +110,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return n == 0 ? icon : Badge(label: Text('$n'), child: icon);
   }
 
-  void _openAgent() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('全局 Agent 助手将在 M6 实现')),
-    );
+  /// 打开全局助手；在日记页时附带当天日记（spec 3.5.1）。
+  Future<void> _openAgent() async {
+    final ctx = _index == _journalIndex ? await journalDayContext(ref, ref.read(selectedDateProvider)) : null;
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => AgentChatPage(pageContext: ctx)));
   }
 
   @override

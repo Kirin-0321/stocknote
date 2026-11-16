@@ -369,6 +369,51 @@ void main() {
     clockOverride = null;
   });
 
+  testWidgets('AI 助手：在日记页打开附带当天日记，调用工具后回答，可点击引用', (tester) async {
+    late String entryId;
+    await tester.runAsync(() async {
+      final e = await JournalRepository(db, TradingCalendar(), now: () => clock)
+          .create(content: '半导体放量突破', classification: const EntryClass(category: 'observe'));
+      entryId = e.id;
+    });
+    clockOverride = MarketClock.fromMarket(2026, 11, 13, 10, 40); // 不在定时分析时点内
+    addTearDown(() => clockOverride = null);
+    final llm = ScriptedLlm([
+      toolCall('search_journal', {'date_from': '2026-11-13'}),
+      answer('## 今日小结\n\n| 时间 | 内容 |\n|---|---|\n| 10:05 | 半导体 |\n\n- 你记录了**半导体**放量 [[journal:$entryId]]'),
+    ]);
+    await pumpApp(tester, extra: [
+      aiConfigRepositoryProvider.overrideWith((ref) => AiConfigRepository(
+          ref.watch(settingsStoreProvider), ref.watch(secretStoreProvider), envDeepseekKey: 'sk-test')),
+      llmFactoryProvider.overrideWithValue((_) => llm),
+    ]);
+    await tester.tap(find.byTooltip('AI 助手'));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pumpAndSettle();
+    expect(find.text('附带：11月13日的日记'), findsOneWidget);
+
+    await tester.tap(find.text('复盘我本周的判断'));
+    await tester.pumpAndSettle();
+    expect(find.text('使用 AI 助手前'), findsOneWidget);
+    await tester.tap(find.text('同意并继续'));
+    for (var i = 0; i < 30 && find.text('今日小结').evaluate().isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    expect(find.text('今日小结'), findsOneWidget);
+    expect(find.text('10:05'), findsOneWidget, reason: '表格');
+    expect(find.text('查询了 1 条日记'), findsOneWidget, reason: '工具调用折叠显示');
+    expect(find.text('📎 11月13日的日记'), findsOneWidget);
+    // 当天日记随第一条消息发给模型
+    expect(llm.calls.first[1].content, contains('半导体放量突破'));
+
+    await tester.tap(find.text('日记').last);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pumpAndSettle();
+    expect(find.text('半导体放量突破'), findsOneWidget, reason: '点击引用打开原文');
+    await disposeApp(tester);
+  });
+
   testWidgets('切换到设置页可打开常用短语', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.text('设置').last);

@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/providers.dart';
 
+import '../agent/agent_pages.dart';
 import 'ai_settings_page.dart';
 import 'cloud_sync_page.dart';
 import 'data_source_page.dart';
@@ -53,6 +54,14 @@ class SettingsPage extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => const AiSettingsPage())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.psychology_outlined),
+          title: const Text('AI 助手'),
+          subtitle: const Text('数据权限、长期记忆'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const AgentSettingsPage())),
         ),
         const _Section('关于'),
         const ListTile(

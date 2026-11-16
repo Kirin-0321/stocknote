@@ -286,6 +286,17 @@ Agent 通过 function calling 按需查询本地数据，而不是一次性把�
 - 盘后自动生成“今日复盘”：汇总当天日记、判断、交易，并与大盘对照，指出与个人规则冲突的地方（如记忆里写了“不追高”，今天却追高买入）
 - 每周总结：判断准确率变化、情绪分布、交易表现
 
+**已实现（M6）**
+- 工具调用：OpenAI 兼容接口（function calling，DeepSeek 的 reasoning_content 原样回传）与 Anthropic（tool_use，思考块原样回传）；单轮最多 8 次工具调用，模型可并行调用
+- 工具：get_market_overview / resolve_instrument / get_quotes / get_kline / search_journal / get_predictions / get_prediction_stats / get_positions / get_trades / get_pnl_stats / get_ai_analyses / get_revisions / memory_search / memory_save / draft_journal_entry（判断类日记即生成可验证的判断，故 draft_prediction 合并到此）
+- 写操作只生成确认卡片（保存 / 不用了），确认后写入；工具调用在对话中折叠显示，可展开看参数与结果
+- 引用：模型以 [[journal|prediction|trade:ID]] 标注，渲染为可点击标签（日记弹出原文，判断与交易跳转详情；ID 错配时按关联关系兜底）
+- 上下文：日记页打开附带当天全部日记；个股详情页、判断详情页右上角"问 AI"附带该标的 / 判断
+- 记忆：每轮注入置顶 + 与问题相关的记忆（关键词 2 字切分 + 重要度 + 最近使用）；"记住……"或模型发现稳定规律时提议保存；离开对话时自动提炼候选记忆进入待确认列表；记忆管理页可编辑、置顶、删除
+- 滚动摘要：未摘要消息超过 40 条时把早期部分压缩进会话摘要，从用户消息处切分保留最近约 12 条原文
+- 数据权限开关（日记 / 判断 / 持仓交易 / AI 分析）与首次使用提示
+- 待做：3.5.4 主动能力（盘后自动复盘、每周总结）
+
 **3.5.5 模型与隐私**
 - 使用 AI 设置中的“Agent”任务模型（默认 DeepSeek，需支持 function calling）
 - 数据权限开关：可分别允许 / 禁止 Agent 读取持仓交易、日记原文等；关闭的类别对应工具不可用

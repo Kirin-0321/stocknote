@@ -1,3 +1,5 @@
+import '../../data/agent/agent_service.dart';
+import '../agent/agent_chat_page.dart';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,6 +83,15 @@ class _InstrumentDetailPageState extends ConsumerState<InstrumentDetailPage> {
           Text(widget.code, style: theme.textTheme.labelSmall),
         ]),
         actions: [
+          IconButton(
+            tooltip: '问 AI',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AgentChatPage(
+                    pageContext: AgentPageContext(
+                        label: '${widget.name}（${widget.code}）',
+                        text: '用户正在看 ${widget.name}（${widget.code}）的行情页，问题默认针对这个标的。')))),
+          ),
           IconButton(
             tooltip: watched ? '取消自选' : '加入自选',
             icon: Icon(watched ? Icons.star : Icons.star_border),

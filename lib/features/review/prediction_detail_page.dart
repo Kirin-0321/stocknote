@@ -1,3 +1,5 @@
+import '../../data/agent/agent_service.dart';
+import '../agent/agent_chat_page.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -60,6 +62,23 @@ class PredictionDetailPage extends ConsumerWidget {
           Text(name),
           Text(p.targetCode, style: theme.textTheme.labelSmall),
         ]),
+        actions: [
+          IconButton(
+            tooltip: '问 AI',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AgentChatPage(
+                      pageContext: AgentPageContext(
+                        label: '判断：$name ${directionLabels[p.direction] ?? p.direction}',
+                        text: '用户正在看一条判断（id: ${p.id}）：$name（${p.targetCode}）'
+                            '${directionLabels[p.direction] ?? p.direction}，周期 ${horizonLabels[p.horizonType] ?? p.horizonType}，'
+                            '到期 ${p.dueDate}，基准价 ${p.basePrice ?? '未知'}，结果 ${v.status?.label ?? '待验证'}。'
+                            '${v.entry == null ? '' : '原始日记（id: ${v.entry!.id}）：${v.entry!.content}'}'
+                            '${v.review == null ? '' : ' 复盘笔记：${v.review!.content}'}',
+                      ),
+                    ))),
+          ),
+        ],
       ),
       body: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
         Padding(
