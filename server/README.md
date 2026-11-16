@@ -36,6 +36,10 @@ SSH_KEY=~/.ssh/stocknote_deploy bash server/deploy/deploy.sh
 服务器上：nginx 监听 8443（自签证书，含域名与 IP；域名未备案前阿里云会按 SNI 拦截，只能用 IP 访问），API 只监听 127.0.0.1:8100，数据在 `/var/lib/stocknote`，每天 3:30 备份。
 脚本最后输出证书 SHA-256 指纹，填到 App「账户与云同步 → 服务器设置」或 `.env` 的 `SYNC_CERT_SHA256`。
 
+域名访问管理后台：`https://stocknote.ainewstrding.top`（`deploy/nginx-stocknote-domain.conf`，装在 `/etc/nginx/conf.d/stocknote-domain.conf`，Let's Encrypt 证书）。
+证书用 acme.sh TLS-ALPN 签发（80 端口验证会被阿里云未备案拦截），续期时会短暂停 nginx 约 10 秒，与服务器上其他域名相同。
+大陆网络直连该域名会被阿里云拦截（未备案），App 同步继续用 `https://121.199.17.162:8443` + 证书指纹。
+
 创建管理员（密码在终端交互输入）：
 
 ```bash
