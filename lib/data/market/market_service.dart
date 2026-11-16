@@ -3,6 +3,7 @@ import 'dart:async';
 import 'market_router.dart';
 import 'models.dart';
 import 'sources.dart';
+import 'tencent_source.dart';
 
 /// 看板一次刷新的结果。各部分独立获取，单项失败不影响其他部分。
 class MarketOverview {
@@ -59,7 +60,9 @@ class MarketOverview {
 
 /// 面向 UI 的行情服务。
 class MarketService {
-  MarketService(this.router);
+  MarketService(this.router, {DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
 
   final MarketRouter router;
 
@@ -101,6 +104,19 @@ class MarketService {
     );
   }
 
+  /// Tushare 没有昨日同一时刻的累计成交额，用腾讯 5 日分时补齐（失败则保持为空）。
+  Future<Turnover?> _withPreviousSameTime(Turnover? t) async {
+    if (t == null || t.yesterdaySameTime != null) return t;
+    final tencent = router.sources.whereType<TencentSource>().firstOrNull;
+    if (tencent == null) return t;
+    try {
+      final prev = await tencent.previousSameTimeTurnover(_now()).timeout(const Duration(seconds: 6));
+      return prev == null ? t : Turnover(today: t.today, yesterdaySameTime: prev, yesterdayTotal: t.yesterdayTotal);
+    } catch (_) {
+      return t;
+    }
+  }
+
   /// 完整看板（低频刷新）。请求串行执行，降低被限流的概率。
   Future<MarketOverview> overview(List<String> indexCodes, String tradeDate) async {
     final errors = <String, String>{};
@@ -109,8 +125,9 @@ class MarketService {
         'breadth', errors, () => router.call(Capability.breadth, (s) => s.breadth()));
     final limits = await _try('limits', errors,
         () => router.call(Capability.limitStats, (s) => s.limitStats(tradeDate)));
-    final turnover = await _try(
+    var turnover = await _try(
         'turnover', errors, () => router.call(Capability.turnover, (s) => s.turnover()));
+    turnover = await _withPreviousSameTime(turnover);
     Future<List<RankItem>?> rank(String key, SectorKind k, bool asc) => _try(key, errors,
         () => router.call(Capability.sectorRank, (s) => s.sectorRank(k, ascending: asc)));
     final it = await rank('industry', SectorKind.industry, false);

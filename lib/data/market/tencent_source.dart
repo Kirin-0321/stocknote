@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:fast_gbk/fast_gbk.dart';
 
+import '../../core/time/market_clock.dart';
+
 import 'code_util.dart';
 import 'http.dart';
 import 'models.dart';
@@ -64,6 +66,49 @@ class TencentSource extends MarketSource {
     final q = await quotes(['000001.SH', '399001.SZ']);
     if (q.length < 2) throw Exception('成交额数据不完整');
     return Turnover(today: q.fold(0.0, (s, x) => s + (x.amount ?? 0)));
+  }
+
+  /// 前一交易日同一时刻的两市累计成交额（元）：上证指数 + 深证综指，取自腾讯 5 日分时。
+  ///
+  /// [now] 在盘前返回 null；午休按 11:30、收盘后按 15:00 对比。今天休市时对比最近两个交易日的全天。
+  Future<double?> previousSameTimeTurnover(DateTime now) async {
+    final m = MarketClock.toMarket(now);
+    final today = TradeDate.format(DateTime.utc(m.year, m.month, m.day));
+    final hhmm = m.hour * 100 + m.minute;
+    var sum = 0.0;
+    for (final code in ['sh000001', 'sz399106']) {
+      final res = await _dio.get<List<int>>('https://web.ifzq.gtimg.cn/appstock/app/day/query',
+          queryParameters: {'code': code});
+      final json = decodeJsonBytes(res.data!) as Map;
+      final days = (((json['data'] as Map?)?[code] as Map?)?['data'] as List?) ?? const [];
+      final v = previousSameTimeAmount(days, today, hhmm);
+      if (v == null) return null;
+      sum += v;
+    }
+    return sum;
+  }
+
+  /// 从 5 日分时（新到旧，每行 "HHMM 价格 累计量 累计额"）取前一交易日同一时刻的累计成交额。
+  static double? previousSameTimeAmount(List days, String today, int hhmm) {
+    if (days.length < 2) return null;
+    final latest = days[0] as Map;
+    final latestIsToday = latest['date'] == today;
+    if (latestIsToday && hhmm < 930) return null; // 盘前没有可比时段
+    final target = !latestIsToday || hhmm >= 1500
+        ? 1500
+        : (hhmm >= 1130 && hhmm < 1300)
+            ? 1130
+            : hhmm;
+    final prev = days[1] as Map;
+    double? amount;
+    for (final row in (prev['data'] as List? ?? const [])) {
+      final f = '$row'.split(' ');
+      if (f.length < 4) continue;
+      final t = int.tryParse(f[0]);
+      if (t == null || t > target) break;
+      amount = toNum(f[3]);
+    }
+    return amount;
   }
 
   List<String> _symbols(List<String> codes) {

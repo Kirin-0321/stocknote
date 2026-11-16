@@ -183,7 +183,8 @@ final marketRouterProvider = Provider((ref) => MarketRouter(
       priority: ref.watch(appConfigProvider.select((c) => c.priority)),
     ));
 
-final marketServiceProvider = Provider((ref) => MarketService(ref.watch(marketRouterProvider)));
+final marketServiceProvider =
+    Provider((ref) => MarketService(ref.watch(marketRouterProvider), now: ref.watch(clockProvider)));
 
 /// 看板最近一次的完整数据，供日记快照复用。
 class LatestOverviewNotifier extends Notifier<MarketOverview?> {
