@@ -90,27 +90,8 @@ class CloudSync {
   static const _kRefresh = 'sync_refresh_token';
   static const _batch = 500;
 
-  /// 参与同步的表（按依赖顺序无要求：各表独立，外键为软关联）。
-  List<TableInfo<Table, dynamic>> get tables => [
-        db.journalEntries,
-        db.marketSnapshots,
-        db.quickPhrases,
-        db.entryTemplates,
-        db.predictions,
-        db.predictionResults,
-        db.reviewNotes,
-        db.thresholdRules,
-        db.revisions,
-        db.aiAnalyses,
-        db.accounts,
-        db.trades,
-        db.positionSnapshots,
-        db.importBatches,
-        db.columnMappings,
-        db.agentThreads,
-        db.agentMessages,
-        db.agentMemories,
-      ];
+  /// 参与同步的表（各表独立，外键为软关联）。
+  List<TableInfo<Table, dynamic>> get tables => syncTablesOf(db);
 
   // ───────────── 配置与账户 ─────────────
 
@@ -365,3 +346,25 @@ class CloudSync {
         ));
   }
 }
+
+/// 用户数据表（云同步与备份共用）：所有带 SyncColumns 的表。
+List<TableInfo<Table, dynamic>> syncTablesOf(AppDatabase db) => [
+  db.journalEntries,
+  db.marketSnapshots,
+  db.quickPhrases,
+  db.entryTemplates,
+  db.predictions,
+  db.predictionResults,
+  db.reviewNotes,
+  db.thresholdRules,
+  db.revisions,
+  db.aiAnalyses,
+  db.accounts,
+  db.trades,
+  db.positionSnapshots,
+  db.importBatches,
+  db.columnMappings,
+  db.agentThreads,
+  db.agentMessages,
+  db.agentMemories,
+    ];

@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 
 import '../agent/agent_pages.dart';
 import 'ai_settings_page.dart';
+import 'backup_page.dart';
 import 'cloud_sync_page.dart';
 import 'data_source_page.dart';
 import 'quick_phrases_page.dart';
@@ -62,6 +63,14 @@ class SettingsPage extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => const AgentSettingsPage())),
+        ),
+        const _Section('数据'),
+        ListTile(
+          leading: const Icon(Icons.save_alt_outlined),
+          title: const Text('数据备份'),
+          subtitle: const Text('导出 / 导入备份，导出日记 Markdown'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupPage())),
         ),
         const _Section('关于'),
         const ListTile(

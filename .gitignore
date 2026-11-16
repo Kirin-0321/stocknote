@@ -29,3 +29,4 @@ server/*.db*
 server/web/node_modules/
 server/web/dist/
 .claude/
+dist/
